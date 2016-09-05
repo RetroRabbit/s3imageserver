@@ -149,4 +149,4 @@ http://example.com/h/my_image_name.jpg?w=300&h=200&c=true&f=png&t=verification_t
 
 Install the package:
 
-	go get github.com/coccodrillo/s3imageserver
+	go get github.com/RetroRabbit/s3imageserver
