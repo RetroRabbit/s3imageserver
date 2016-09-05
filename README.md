@@ -26,7 +26,7 @@ You can use it as a package like this:
 	import (
 		"fmt"
 
-		"github.com/coccodrillo/s3imageserver/s3imageserver"
+		"github.com/RetroRabbit/s3imageserver/s3imageserver"
 		"github.com/dgrijalva/jwt-go"
 	)
 
@@ -43,7 +43,7 @@ There is also an option to pass a handler for validation, so it's easy to implem
 		"fmt"
 		"io/ioutil"
 
-		"github.com/coccodrillo/s3imageserver/s3imageserver"
+		"github.com/RetroRabbit/s3imageserver/s3imageserver"
 		"github.com/dgrijalva/jwt-go"
 	)
 
@@ -108,10 +108,16 @@ This is a sample of how configuration looks like:
 	        "aws_access": "aws_access_key",
 	        "aws_secret": "aws_secret_key"
 	      },
+	      "facebook": true,
 	      "error_image": "error_image.jpg",
 	      "output_format": "jpg",
 	      "cache_enabled": true,
 	      "cache_path": "./cache",
+	      "default_width": 800,
+	      "default_height": 450,
+	      "default_quality": 60,
+	      "wifi_quality": 90,
+	      "verification_required": true,
 	    }
 	  ],
 	  "http_port": 80,
