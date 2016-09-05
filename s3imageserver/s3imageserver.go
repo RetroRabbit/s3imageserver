@@ -12,6 +12,8 @@ import (
 
 	"strconv"
 	"sync"
+	"strings"
+	"net/url"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -35,11 +37,18 @@ type HandlerConfig struct {
 		BucketName string `json:"bucket_name"`
 		FilePath   string `json:"file_path"`
 	} `json:"aws"`
+	Facebook		 bool    `json:"facebook"`
+	FacebookLegacy		 bool    `json:"facebook_lecagy"`
 	ErrorImage   string   `json:"error_image"`
 	Allowed      []string `json:"allowed_formats"`
 	OutputFormat string   `json:"output_format"`
 	CachePath    string   `json:"cache_path"`
 	CacheTime    *int     `json:"cache_time"`
+	DefaultWidth    	*int     `json:"default_width"`
+	DefaultHeight    	*int     `json:"default_height"`
+	DefaultQuality    *int     `json:"default_quality"`
+	WifiQuality    *int     `json:"wifi_quality"`
+	VerificationRequired    *bool     `json:"verification_required"`
 }
 
 type HandleVerification func(string) bool
@@ -60,18 +69,22 @@ func Run(verify HandleVerification) {
 	}
 
 	r := httprouter.New()
-	for _, handler := range conf.Handlers {
+	for _, handle := range conf.Handlers {
+		handler := handle
 		prefix := handler.Name
 		if handler.Prefix != "" {
 			prefix = handler.Prefix
 		}
-		r.GET("/"+prefix+"/:param", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			i, err := NewImage(r, handler, ps.ByName("param"))
+		r.GET("/"+prefix+"/*param", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+   		param := strings.TrimPrefix(ps.ByName("param"), "/")
+			cleanURL(r)
+			i, err := NewImage(r, handler, param)
 			i.ErrorImage = handler.ErrorImage
-			if err == nil && (verify == nil || verify(r.URL.Query().Get("t"))) {
-				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret)
+			if err == nil && (verify == nil || !*handler.VerificationRequired || verify(r.URL.Query().Get("t"))) {
+				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
 			} else {
 				if err != nil {
+					fmt.Println(r.URL.String())
 					fmt.Println(err.Error())
 				}
 				i.getErrorImage()
@@ -81,6 +94,9 @@ func Run(verify HandleVerification) {
 			i.write(w)
 		})
 	}
+	r.GET("/stat", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.WriteHeader(200)
+	})
 
 	wg := &sync.WaitGroup{}
 	if conf.validateHTTPS() {
@@ -126,6 +142,16 @@ func Run(verify HandleVerification) {
 		wg.Done()
 	}()
 	wg.Wait()
+}
+
+func cleanURL(r *http.Request) {
+	query := strings.SplitN(r.URL.String(), "?", 2)
+	queryString := query[0]
+	if (len(query) > 1) {
+		queryString = queryString + "?" + strings.Replace(query[1], "?", "&", -1)
+	}
+	url,_ := url.ParseRequestURI(queryString)
+	r.URL = url
 }
 
 func (c *Config) validateHTTPS() bool {

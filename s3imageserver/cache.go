@@ -26,7 +26,15 @@ func (i *Image) getFromCache(r *http.Request) (err error) {
 		file, err := ioutil.ReadAll(f)
 		if err != nil {
 			fmt.Println(err)
+			ferr := f.Close()
+			if (ferr != nil) {
+				fmt.Println(ferr)
+			}
 			return err
+		}
+		ferr := f.Close()
+		if (ferr != nil) {
+			fmt.Println(ferr)
 		}
 		i.Image = file
 		if i.Debug {
@@ -63,7 +71,8 @@ func (i *Image) getCachedFileName(r *http.Request) (fileName string) {
 		pathPrefix = h[1]
 	}
 	fileNameOnly := i.FileName[0 : len(i.FileName)-len(filepath.Ext(i.FileName))]
-	return fmt.Sprintf("%v/%v_w%v_h%v_c%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, fileNameOnly, allowedMap[i.OutputFormat])
+	fileNameOnly = strings.Replace(fileNameOnly, "/", "", -1)
+	return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_i%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.Interlaced, fileNameOnly, allowedMap[i.OutputFormat])
 }
 
 // TODO: add garbage colection

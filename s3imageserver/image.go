@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+	"strings"
+	"net/url"
 
-	"github.com/coccodrillo/vips"
+	"github.com/RetroRabbit/vips"
 	"github.com/gosexy/to"
 	"github.com/kr/s3"
 )
@@ -21,14 +23,17 @@ type Image struct {
 	Bucket          string
 	Crop            bool
 	Debug           bool
+	Interlaced      bool
 	Height          int
 	Width           int
 	Image           []byte
+	Quality	        int
 	CacheTime       int
 	CachePath       string
 	ErrorImage      string
 	ErrorResizeCrop bool
 	OutputFormat    vips.ImageType
+	Enlarge					bool
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -37,43 +42,74 @@ var allowedMap = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG: ".jpg"
 func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Image, err error) {
 	maxDimension := 3064
 	height := int(to.Float64(r.URL.Query().Get("h")))
+	if height == 0 {
+		height = *config.DefaultHeight
+	}
 	width := int(to.Float64(r.URL.Query().Get("w")))
+	if width == 0 {
+		width = *config.DefaultWidth
+	}
 	if height > maxDimension {
 		height = maxDimension
 	}
 	if width > maxDimension {
 		width = maxDimension
 	}
+	enlarge := true
+	if r.URL.Query().Get("c") != "" {
+		enlarge = to.Bool(r.URL.Query().Get("e"))
+	}
 	crop := true
 	if r.URL.Query().Get("c") != "" {
 		crop = to.Bool(r.URL.Query().Get("c"))
+	}
+	interlaced := true
+	if r.URL.Query().Get("i") != "" {
+		interlaced = to.Bool(r.URL.Query().Get("i"))
+	}
+	quality := *config.DefaultQuality
+	if (r.URL.Query().Get("p") != "") {
+		profile := string(r.URL.Query().Get("p"))
+		if (profile == "w" && *config.WifiQuality > 0) {
+			quality = *config.WifiQuality
+		}
+	}
+	if r.URL.Query().Get("q") != "" {
+		quality = int(to.Float64(r.URL.Query().Get("q")))
 	}
 	image = &Image{
 		Path:            config.AWS.FilePath,
 		Bucket:          config.AWS.BucketName,
 		Height:          height,
 		Crop:            crop,
+		Interlaced:			 interlaced,
 		Width:           width,
+		Quality:				 quality,
 		CacheTime:       604800, // cache time in seconds, set 0 to infinite and -1 for disabled
 		CachePath:       config.CachePath,
 		ErrorImage:      "",
 		ErrorResizeCrop: true,
 		OutputFormat:    vips.WEBP,
+		Enlarge:				 enlarge,
 	}
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
 	}
+	image.isFormatSupported(config.OutputFormat)
 	image.isFormatSupported(r.URL.Query().Get("f"))
 	acceptedTypes := allowedTypes
 	if config.Allowed != nil && len(config.Allowed) > 0 {
 		acceptedTypes = config.Allowed
 	}
 	for _, allowed := range acceptedTypes {
-		if allowed == filepath.Ext(fileName) {
+		if len(filepath.Ext(fileName)) == 0 {
+			image.FileName = filepath.FromSlash(fileName)
+		} else if allowed == filepath.Ext(fileName) {
 			image.FileName = filepath.FromSlash(fileName)
 		}
 	}
 	if image.FileName == "" {
+		fmt.Println("FileName: " + fileName)
 		err = errors.New("File name cannot be an empty string")
 	}
 	if image.Bucket == "" {
@@ -82,7 +118,7 @@ func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Im
 	return image, err
 }
 
-func (i *Image) getImage(w http.ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string) {
+func (i *Image) getImage(w http.ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
 	var err error
 	if i.CacheTime > -1 {
 		err = i.getFromCache(r)
@@ -91,8 +127,13 @@ func (i *Image) getImage(w http.ResponseWriter, r *http.Request, AWSAccess strin
 	}
 	if err != nil {
 		fmt.Println(err)
-		err := i.getImageFromS3(AWSAccess, AWSSecret)
+		if (Facebook) {
+			err = i.getImageFromFacebook(r, FacebookLegacy);
+		} else {
+			err = i.getImageFromS3(AWSAccess, AWSSecret)
+		}
 		if err != nil {
+			fmt.Println(r.URL.String())
 			fmt.Println(err)
 			err = i.getErrorImage()
 			w.WriteHeader(404)
@@ -134,26 +175,89 @@ func (i *Image) getErrorImage() (err error) {
 	return errors.New("Error image not specified")
 }
 
-func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
-	req, _ := http.NewRequest("GET", fmt.Sprintf("https://%v.s3.amazonaws.com/%v%v", i.Bucket, i.Path, i.FileName), nil)
-	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
-	req.Header.Set("X-Amz-Acl", "public-read")
-	s3.Sign(req, s3.Keys{
-		AccessKey: AWSAccess,
-		SecretKey: AWSSecret,
-	})
-	resp, err := http.DefaultClient.Do(req)
-	if err == nil && resp.StatusCode == http.StatusOK {
-		defer resp.Body.Close()
-		i.Image, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-		} else if i.Debug {
-			fmt.Println("Retrieved image from from S3")
+func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
+	fbUrl := fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
+	if (legacy) {
+		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
+	}
+	req, reqErr := http.NewRequest("GET", fbUrl, nil)
+	if reqErr != nil {
+		fmt.Println(r.URL.String())
+		fmt.Println(reqErr)
+		err = reqErr
+	} else {
+		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
+		req.Header.Set("X-Amz-Acl", "public-read")
+		resp, err := http.DefaultClient.Do(req)
+		if (err == nil) {
+				defer resp.Body.Close()
 		}
-		return nil
-	} else if resp.StatusCode != http.StatusOK {
-		err = errors.New("Error while making request")
+		if err == nil && resp.StatusCode == http.StatusOK {
+			i.Image, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println(r.URL.String())
+				fmt.Println(err)
+			} else if i.Debug {
+				fmt.Println("Retrieved image from from facebook")
+			}
+			if (err == nil) {
+					defer resp.Body.Close()
+			}
+			return nil
+		} else if resp.StatusCode != http.StatusOK {
+			if !legacy {
+				query := strings.Replace(r.URL.String(), "/facebook", "", -1)
+				url,_ := url.ParseRequestURI(query)
+				r.URL = url
+				if (err == nil) {
+						defer resp.Body.Close()
+				}
+				return i.getImageFromFacebook(r, true)
+			} else {
+				err = errors.New("Error while making request")
+			}
+		}
+		if (err == nil) {
+				defer resp.Body.Close()
+		}
+	}
+	return err
+}
+
+func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
+	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v%v", i.Bucket, i.Path, i.FileName)
+	req, reqErr := http.NewRequest("GET", reqURL, nil)
+	if reqErr != nil {
+		fmt.Println(reqURL)
+		fmt.Println(reqErr)
+		err = reqErr
+	} else {
+		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
+		req.Header.Set("X-Amz-Acl", "public-read")
+		s3.Sign(req, s3.Keys{
+			AccessKey: AWSAccess,
+			SecretKey: AWSSecret,
+		})
+		resp, err := http.DefaultClient.Do(req)
+		fmt.Println(resp.StatusCode)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			i.Image, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println(reqURL)
+				fmt.Println(err)
+			} else if i.Debug {
+				fmt.Println("Retrieved image from from S3")
+			}
+			if (err == nil) {
+					defer resp.Body.Close()
+			}
+			return nil
+		} else if resp.StatusCode != http.StatusOK {
+			err = errors.New("Error while making request")
+		}
+		if (err == nil) {
+				defer resp.Body.Close()
+		}
 	}
 	return err
 }
@@ -165,9 +269,11 @@ func (i *Image) resizeCrop() {
 		Crop:         i.Crop,
 		Extend:       vips.EXTEND_WHITE,
 		Interpolator: vips.BICUBIC,
+		Interlaced: 	i.Interlaced,
 		Gravity:      vips.CENTRE,
-		Quality:      75,
+		Quality:      i.Quality,
 		Format:       i.OutputFormat,
+		Enlarge:			i.Enlarge,
 	}
 	buf, err := vips.Resize(i.Image, options)
 	if err != nil {
