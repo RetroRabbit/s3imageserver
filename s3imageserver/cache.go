@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func (i *Image) getFromCache(w ResponseWriter, r *http.Request) (err error) {
+func (i *Image) getFromCache(w *ResponseWriter, r *http.Request) (err error) {
 	newFileName := i.getCachedFileName(w, r)
 	info, err := os.Stat(newFileName)
 	if err != nil {
@@ -46,21 +46,21 @@ func (i *Image) getFromCache(w ResponseWriter, r *http.Request) (err error) {
 	return errors.New("The file has expired")
 }
 
-func (i *Image) writeCache(w ResponseWriter, r *http.Request) {
+func (i *Image) writeCache(w *ResponseWriter, r *http.Request) {
 	err := ioutil.WriteFile(i.getCachedFileName(w, r), i.Image, 0644)
 	if err != nil {
 		w.log(err)
 	}
 }
 
-func removeExpiredImage(w ResponseWriter, fileName string) {
+func removeExpiredImage(w *ResponseWriter, fileName string) {
 	err := os.Remove(fileName)
 	if err != nil {
 		w.log(err)
 	}
 }
 
-func (i *Image) getCachedFileName(w ResponseWriter, r *http.Request) (fileName string) {
+func (i *Image) getCachedFileName(w *ResponseWriter, r *http.Request) (fileName string) {
 	var pathPrefix string
 	u, err := url.Parse(r.URL.String())
 	if err != nil {

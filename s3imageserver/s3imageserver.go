@@ -15,7 +15,9 @@ import (
 	"sync"
 	"strings"
 	"net/url"
+	"database/sql"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/julienschmidt/httprouter"
   "github.com/twinj/uuid"
 )
@@ -71,6 +73,7 @@ func Run(verify HandleVerification) {
 		log.Println("Error:", err)
 		os.Exit(1)
 	}
+	databaseInit(conf)
 
 	r := httprouter.New()
 	for _, handle := range conf.Handlers {
@@ -83,20 +86,20 @@ func Run(verify HandleVerification) {
 			w := reflect.ValueOf(writer).Interface().(*ResponseWriter)
 			param := strings.TrimPrefix(ps.ByName("param"), "/")
 			cleanURL(r)
-			i, err := NewImage(*w, r, handler, param)
+			i, err := NewImage(w, r, handler, param)
 			i.ErrorImage = handler.ErrorImage
 			if err == nil && (verify == nil || !*handler.VerificationRequired || verify(r.URL.Query().Get("t"))) {
-				i.getImage(*w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
+				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
 			} else {
 				if err != nil {
 					log.Println(r.URL.String())
 					log.Println(err.Error())
 				}
-				i.getErrorImage(*w)
+				i.getErrorImage(w)
 				w.WriteHeader(404)
 				w.Header().Set("Content-Length", strconv.Itoa(len(i.Image)))
 			}
-			i.write(*w)
+			i.write(w)
 		})
 	}
 	r.GET("/stat", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -147,6 +150,25 @@ func Run(verify HandleVerification) {
 		wg.Done()
 	}()
 	wg.Wait()
+}
+
+func databaseInit(conf Config) {
+	if conf.Database != "" {
+		conn, err := sql.Open("sqlite3", conf.Database)
+  	if err != nil {
+  		log.Println("SQL Open error -> ", err)
+      return
+  	}
+  	_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"request_actions\" ( `id` TEXT NOT NULL UNIQUE, `requestId` TEXT NOT NULL, `action` TEXT, `result` TEXT, PRIMARY KEY(`id`) )")
+  	if err != nil {
+  		log.Println("SQL Create Table error -> ", err)
+  	}
+  	_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"requests\" ( `id` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL, `startTime` INTEGER DEFAULT 0, `endTime` INTEGER DEFAULT 0, `size` INTEGER DEFAULT 0, `type` INTEGER DEFAULT 0, `s3Size`	INTEGER DEFAULT 0, PRIMARY KEY(`id`) )")
+  	if err != nil {
+  		log.Println("SQL Create Table error -> ", err)
+  	}
+    conn.Close()
+	}
 }
 
 func cleanURL(r *http.Request) {

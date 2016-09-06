@@ -38,7 +38,7 @@ type Image struct {
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
 var allowedMap = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG: ".jpg", vips.PNG: ".png"}
 
-func NewImage(w ResponseWriter, r *http.Request, config HandlerConfig, fileName string) (image *Image, err error) {
+func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName string) (image *Image, err error) {
 	maxDimension := 3064
 	height := int(to.Float64(r.URL.Query().Get("h")))
 	if height == 0 {
@@ -117,7 +117,7 @@ func NewImage(w ResponseWriter, r *http.Request, config HandlerConfig, fileName 
 	return image, err
 }
 
-func (i *Image) getImage(w ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
+func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
 	var err error
 	if i.CacheTime > -1 {
 		err = i.getFromCache(w, r)
@@ -125,6 +125,7 @@ func (i *Image) getImage(w ResponseWriter, r *http.Request, AWSAccess string, AW
 		err = errors.New("Caching disabled")
 	}
 	if err != nil {
+		w.updateType(GENERATE)
 		if (Facebook) {
 			err = i.getImageFromFacebook(w, r, FacebookLegacy);
 		} else {
@@ -136,10 +137,11 @@ func (i *Image) getImage(w ResponseWriter, r *http.Request, AWSAccess string, AW
 			err = i.getErrorImage(w)
 			w.WriteHeader(404)
 		} else {
-			w.log("PRINT: Error was empty ")
 			i.resizeCrop(w)
 			go i.writeCache(w, r)
 		}
+	} else {
+		w.updateType(CACHED)
 	}
 	i.write(w)
 }
@@ -155,12 +157,12 @@ func (i *Image) isFormatSupported(format string) {
 	}
 }
 
-func (i *Image) write(w ResponseWriter) {
+func (i *Image) write(w *ResponseWriter) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(i.Image)))
 	w.Write(i.Image)
 }
 
-func (i *Image) getErrorImage(w ResponseWriter) (err error) {
+func (i *Image) getErrorImage(w *ResponseWriter) (err error) {
 	if i.ErrorImage != "" {
 		i.Image, err = ioutil.ReadFile(i.ErrorImage)
 		if err != nil {
@@ -174,7 +176,7 @@ func (i *Image) getErrorImage(w ResponseWriter) (err error) {
 	return errors.New("Error image not specified")
 }
 
-func (i *Image) getImageFromFacebook(w ResponseWriter, r *http.Request, legacy bool) (err error) {
+func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy bool) (err error) {
 	fbUrl := fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
 	if (legacy) {
 		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
@@ -193,6 +195,7 @@ func (i *Image) getImageFromFacebook(w ResponseWriter, r *http.Request, legacy b
 		}
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
+			w.setS3Size(len(i.Image))
 			if err != nil {
 				w.log("PRINT: ", r.URL.String())
 				w.log("PRINT: ", err)
@@ -218,7 +221,7 @@ func (i *Image) getImageFromFacebook(w ResponseWriter, r *http.Request, legacy b
 	return err
 }
 
-func (i *Image) getImageFromS3(w ResponseWriter, AWSAccess string, AWSSecret string) (err error) {
+func (i *Image) getImageFromS3(w *ResponseWriter, AWSAccess string, AWSSecret string) (err error) {
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v%v", i.Bucket, i.Path, i.FileName)
 	req, reqErr := http.NewRequest("GET", reqURL, nil)
 	if reqErr != nil {
@@ -238,6 +241,7 @@ func (i *Image) getImageFromS3(w ResponseWriter, AWSAccess string, AWSSecret str
 		}
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
+			w.setS3Size(len(i.Image))
 			if err != nil {
 				w.log("PRINT: ", reqURL)
 				w.log("PRINT: ", err)
@@ -257,7 +261,7 @@ func (i *Image) getImageFromS3(w ResponseWriter, AWSAccess string, AWSSecret str
 	return err
 }
 
-func (i *Image) resizeCrop(w ResponseWriter) {
+func (i *Image) resizeCrop(w *ResponseWriter) {
 	options := vips.Options{
 		Width:        i.Width,
 		Height:       i.Height,
