@@ -140,6 +140,7 @@ func Run(verify HandleVerification) {
 		if conf.HTTPPort != 0 {
 			HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
 		}
+		log.Println("Starting on port ", HTTPPort)
 		if conf.HTTPSStrict && conf.HTTPSEnabled {
 			http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
