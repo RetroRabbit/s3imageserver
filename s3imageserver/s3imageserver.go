@@ -9,12 +9,15 @@ import (
 	"net/http"
 	"os"
 
+  "reflect"
+
 	"strconv"
 	"sync"
 	"strings"
 	"net/url"
 
 	"github.com/julienschmidt/httprouter"
+  "github.com/twinj/uuid"
 )
 
 type Config struct {
@@ -25,6 +28,7 @@ type Config struct {
 	HTTPSPort    int             `json:"https_port"`
 	HTTPSCert    string          `json:"https_cert"`
 	HTTPSKey     string          `json:"https_key"`
+	Database		 string					 `json:"database"`
 }
 
 type HandlerConfig struct {
@@ -53,6 +57,7 @@ type HandlerConfig struct {
 type HandleVerification func(string) bool
 
 func Run(verify HandleVerification) {
+	uuid.Init()
 	envArg := flag.String("c", "config.json", "Configuration")
 	flag.Parse()
 	content, err := ioutil.ReadFile(*envArg)
@@ -74,8 +79,9 @@ func Run(verify HandleVerification) {
 		if handler.Prefix != "" {
 			prefix = handler.Prefix
 		}
-		r.GET("/"+prefix+"/*param", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-   		param := strings.TrimPrefix(ps.ByName("param"), "/")
+		r.GET("/"+prefix+"/*param", func(writer http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			w := reflect.ValueOf(writer).Interface().(*ResponseWriter)
+			param := strings.TrimPrefix(ps.ByName("param"), "/")
 			cleanURL(r)
 			i, err := NewImage(r, handler, param)
 			i.ErrorImage = handler.ErrorImage
@@ -134,9 +140,9 @@ func Run(verify HandleVerification) {
 		if conf.HTTPSStrict && conf.HTTPSEnabled {
 			http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-			})})
+			}), conf})
 		} else {
-			http.ListenAndServe(HTTPPort, &HttpTimer{r})
+			http.ListenAndServe(HTTPPort, &HttpTimer{r, conf})
 		}
 		wg.Done()
 	}()

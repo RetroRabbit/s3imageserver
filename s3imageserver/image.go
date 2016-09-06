@@ -119,7 +119,7 @@ func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Im
 	return image, err
 }
 
-func (i *Image) getImage(w http.ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
+func (i *Image) getImage(w ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
 	var err error
 	if i.CacheTime > -1 {
 		err = i.getFromCache(r)
@@ -157,7 +157,7 @@ func (i *Image) isFormatSupported(format string) {
 	}
 }
 
-func (i *Image) write(w http.ResponseWriter) {
+func (i *Image) write(w ResponseWriter) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(i.Image)))
 	w.Write(i.Image)
 }
