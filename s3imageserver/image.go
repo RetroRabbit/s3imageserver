@@ -2,11 +2,9 @@ package s3imageserver
 
 import (
 	"errors"
-	"log"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -40,7 +38,7 @@ type Image struct {
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
 var allowedMap = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG: ".jpg", vips.PNG: ".png"}
 
-func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Image, err error) {
+func NewImage(w ResponseWriter, r *http.Request, config HandlerConfig, fileName string) (image *Image, err error) {
 	maxDimension := 3064
 	height := int(to.Float64(r.URL.Query().Get("h")))
 	if height == 0 {
@@ -110,7 +108,7 @@ func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Im
 		}
 	}
 	if image.FileName == "" {
-		log.Println("PRINT: FileName: " + fileName)
+		w.log("PRINT: FileName: " + fileName)
 		err = errors.New("File name cannot be an empty string")
 	}
 	if image.Bucket == "" {
@@ -122,25 +120,25 @@ func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Im
 func (i *Image) getImage(w ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
 	var err error
 	if i.CacheTime > -1 {
-		err = i.getFromCache(r)
+		err = i.getFromCache(w, r)
 	} else {
 		err = errors.New("Caching disabled")
 	}
 	if err != nil {
 		if (Facebook) {
-			err = i.getImageFromFacebook(r, FacebookLegacy);
+			err = i.getImageFromFacebook(w, r, FacebookLegacy);
 		} else {
-			err = i.getImageFromS3(AWSAccess, AWSSecret)
+			err = i.getImageFromS3(w, AWSAccess, AWSSecret)
 		}
 		if err != nil {
-			log.Println("PRINT: ", r.URL.String())
-			log.Println("PRINT: ", err)
-			err = i.getErrorImage()
+			w.log("PRINT: ", r.URL.String())
+			w.log("PRINT: ", err)
+			err = i.getErrorImage(w)
 			w.WriteHeader(404)
 		} else {
-			log.Println("PRINT: Error was empty ")
-			i.resizeCrop()
-			go i.writeCache(r)
+			w.log("PRINT: Error was empty ")
+			i.resizeCrop(w)
+			go i.writeCache(w, r)
 		}
 	}
 	i.write(w)
@@ -162,29 +160,29 @@ func (i *Image) write(w ResponseWriter) {
 	w.Write(i.Image)
 }
 
-func (i *Image) getErrorImage() (err error) {
+func (i *Image) getErrorImage(w ResponseWriter) (err error) {
 	if i.ErrorImage != "" {
 		i.Image, err = ioutil.ReadFile(i.ErrorImage)
 		if err != nil {
 			return err
 		}
 		if i.ErrorResizeCrop {
-			i.resizeCrop()
+			i.resizeCrop(w)
 		}
 		return nil
 	}
 	return errors.New("Error image not specified")
 }
 
-func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
+func (i *Image) getImageFromFacebook(w ResponseWriter, r *http.Request, legacy bool) (err error) {
 	fbUrl := fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
 	if (legacy) {
 		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
 	}
 	req, reqErr := http.NewRequest("GET", fbUrl, nil)
 	if reqErr != nil {
-		log.Println("PRINT: ", r.URL.String())
-		log.Println("PRINT: ", reqErr)
+		w.log("PRINT: ", r.URL.String())
+		w.log("PRINT: ", reqErr)
 		err = reqErr
 	} else {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -196,10 +194,10 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
 			if err != nil {
-				log.Println("PRINT: ", r.URL.String())
-				log.Println("PRINT: ", err)
+				w.log("PRINT: ", r.URL.String())
+				w.log("PRINT: ", err)
 			} else if i.Debug {
-				log.Println("PRINT: Retrieved image from from facebook")
+				w.log("PRINT: Retrieved image from from facebook")
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
@@ -207,12 +205,12 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 				query := strings.Replace(r.URL.String(), "/facebook", "", -1)
 				url,_ := url.ParseRequestURI(query)
 				r.URL = url
-				return i.getImageFromFacebook(r, true)
+				return i.getImageFromFacebook(w, r, true)
 			} else {
 				if (err == nil) {
 					return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
 				} else {
-					log.Println("PRINT: Error while making request")
+					w.log("PRINT: Error while making request")
 				}
 			}
 		}
@@ -220,12 +218,12 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 	return err
 }
 
-func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
+func (i *Image) getImageFromS3(w ResponseWriter, AWSAccess string, AWSSecret string) (err error) {
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v%v", i.Bucket, i.Path, i.FileName)
 	req, reqErr := http.NewRequest("GET", reqURL, nil)
 	if reqErr != nil {
-		log.Println("PRINT: ", reqURL)
-		log.Println("PRINT: ", reqErr)
+		w.log("PRINT: ", reqURL)
+		w.log("PRINT: ", reqErr)
 		err = reqErr
 	} else {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -241,25 +239,25 @@ func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
 			if err != nil {
-				log.Println("PRINT: ", reqURL)
-				log.Println("PRINT: ", err)
+				w.log("PRINT: ", reqURL)
+				w.log("PRINT: ", err)
 				return err
 			} else if i.Debug {
-				log.Println("PRINT: Retrieved image from from S3")
+				w.log("PRINT: Retrieved image from from S3")
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
 			if (err == nil) {
 				return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
 			} else {
-				log.Println("PRINT: %v Error while making request.", resp.StatusCode)
+				w.log("PRINT: %v Error while making request.", resp.StatusCode)
 			}
 		}
 	}
 	return err
 }
 
-func (i *Image) resizeCrop() {
+func (i *Image) resizeCrop(w ResponseWriter) {
 	options := vips.Options{
 		Width:        i.Width,
 		Height:       i.Height,
@@ -274,7 +272,7 @@ func (i *Image) resizeCrop() {
 	}
 	buf, err := vips.Resize(i.Image, options)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		w.log(err)
 		return
 	}
 	i.Image = buf

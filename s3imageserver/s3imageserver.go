@@ -83,20 +83,20 @@ func Run(verify HandleVerification) {
 			w := reflect.ValueOf(writer).Interface().(*ResponseWriter)
 			param := strings.TrimPrefix(ps.ByName("param"), "/")
 			cleanURL(r)
-			i, err := NewImage(r, handler, param)
+			i, err := NewImage(*w, r, handler, param)
 			i.ErrorImage = handler.ErrorImage
 			if err == nil && (verify == nil || !*handler.VerificationRequired || verify(r.URL.Query().Get("t"))) {
-				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
+				i.getImage(*w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
 			} else {
 				if err != nil {
 					log.Println(r.URL.String())
 					log.Println(err.Error())
 				}
-				i.getErrorImage()
+				i.getErrorImage(*w)
 				w.WriteHeader(404)
 				w.Header().Set("Content-Length", strconv.Itoa(len(i.Image)))
 			}
-			i.write(w)
+			i.write(*w)
 		})
 	}
 	r.GET("/stat", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

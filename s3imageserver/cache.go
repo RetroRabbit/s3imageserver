@@ -3,7 +3,6 @@ package s3imageserver
 import (
 	"errors"
 	"fmt"
-	"log"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -13,8 +12,8 @@ import (
 	"time"
 )
 
-func (i *Image) getFromCache(r *http.Request) (err error) {
-	newFileName := i.getCachedFileName(r)
+func (i *Image) getFromCache(w ResponseWriter, r *http.Request) (err error) {
+	newFileName := i.getCachedFileName(w, r)
 	info, err := os.Stat(newFileName)
 	if err != nil {
 		return err
@@ -26,42 +25,42 @@ func (i *Image) getFromCache(r *http.Request) (err error) {
 		}
 		file, err := ioutil.ReadAll(f)
 		if err != nil {
-			log.Println(err)
+			w.log(err)
 			ferr := f.Close()
 			if (ferr != nil) {
-				log.Println(ferr)
+				w.log(ferr)
 			}
 			return err
 		}
 		ferr := f.Close()
 		if (ferr != nil) {
-			log.Println(ferr)
+			w.log(ferr)
 		}
 		i.Image = file
 		if i.Debug {
-			log.Println("from cache")
+			w.log("from cache")
 		}
 		return nil
 	}
-	go removeExpiredImage(newFileName)
+	go removeExpiredImage(w, newFileName)
 	return errors.New("The file has expired")
 }
 
-func (i *Image) writeCache(r *http.Request) {
-	err := ioutil.WriteFile(i.getCachedFileName(r), i.Image, 0644)
+func (i *Image) writeCache(w ResponseWriter, r *http.Request) {
+	err := ioutil.WriteFile(i.getCachedFileName(w, r), i.Image, 0644)
 	if err != nil {
-		log.Println(err)
+		w.log(err)
 	}
 }
 
-func removeExpiredImage(fileName string) {
+func removeExpiredImage(w ResponseWriter, fileName string) {
 	err := os.Remove(fileName)
 	if err != nil {
-		log.Println(err)
+		w.log(err)
 	}
 }
 
-func (i *Image) getCachedFileName(r *http.Request) (fileName string) {
+func (i *Image) getCachedFileName(w ResponseWriter, r *http.Request) (fileName string) {
 	var pathPrefix string
 	u, err := url.Parse(r.URL.String())
 	if err != nil {
