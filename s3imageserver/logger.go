@@ -32,7 +32,23 @@ func (rwr *ResponseWriter) Header() http.Header {
 }
 
 func (rwr *ResponseWriter) log(v ...interface{}) {
-  log.Println(v)
+  rwr.loga("", v)
+}
+
+func (rwr *ResponseWriter) loga(action string, v ...interface{}) {
+  log.Println(action, " -> ", fmt.Sprint(v...))
+  if rwr.conf.Database != "" {
+  	conn, err := sql.Open("sqlite3", rwr.conf.Database)
+  	if err != nil {
+  		log.Println("SQL Open error -> ", err)
+      return
+  	}
+		_, err = conn.Exec("INSERT INTO request_actions (id, requestId, action, result) VALUES ( ? , ? , ? , ? )", uuid.NewV4().String(), rwr.id, action, fmt.Sprint(v...))
+  	if err != nil {
+  		log.Println("SQL Insert error -> ", err)
+  	}
+    conn.Close()
+  }
 }
 
 func (rwr *ResponseWriter) Write(b []byte) (int, error) {
