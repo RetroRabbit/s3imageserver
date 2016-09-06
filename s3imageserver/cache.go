@@ -3,6 +3,7 @@ package s3imageserver
 import (
 	"errors"
 	"fmt"
+	"log"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -25,20 +26,20 @@ func (i *Image) getFromCache(r *http.Request) (err error) {
 		}
 		file, err := ioutil.ReadAll(f)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			ferr := f.Close()
 			if (ferr != nil) {
-				fmt.Println(ferr)
+				log.Println(ferr)
 			}
 			return err
 		}
 		ferr := f.Close()
 		if (ferr != nil) {
-			fmt.Println(ferr)
+			log.Println(ferr)
 		}
 		i.Image = file
 		if i.Debug {
-			fmt.Println("from cache")
+			log.Println("from cache")
 		}
 		return nil
 	}
@@ -49,14 +50,14 @@ func (i *Image) getFromCache(r *http.Request) (err error) {
 func (i *Image) writeCache(r *http.Request) {
 	err := ioutil.WriteFile(i.getCachedFileName(r), i.Image, 0644)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 
 func removeExpiredImage(fileName string) {
 	err := os.Remove(fileName)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 }
 

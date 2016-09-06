@@ -2,6 +2,7 @@ package s3imageserver
 
 import (
 	"errors"
+	"log"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -109,7 +110,7 @@ func NewImage(r *http.Request, config HandlerConfig, fileName string) (image *Im
 		}
 	}
 	if image.FileName == "" {
-		fmt.Println("FileName: " + fileName)
+		log.Println("PRINT: FileName: " + fileName)
 		err = errors.New("File name cannot be an empty string")
 	}
 	if image.Bucket == "" {
@@ -126,18 +127,18 @@ func (i *Image) getImage(w http.ResponseWriter, r *http.Request, AWSAccess strin
 		err = errors.New("Caching disabled")
 	}
 	if err != nil {
-		fmt.Println(err)
 		if (Facebook) {
 			err = i.getImageFromFacebook(r, FacebookLegacy);
 		} else {
 			err = i.getImageFromS3(AWSAccess, AWSSecret)
 		}
 		if err != nil {
-			fmt.Println(r.URL.String())
-			fmt.Println(err)
+			log.Println("PRINT: ", r.URL.String())
+			log.Println("PRINT: ", err)
 			err = i.getErrorImage()
 			w.WriteHeader(404)
 		} else {
+			log.Println("PRINT: Error was empty ")
 			i.resizeCrop()
 			go i.writeCache(r)
 		}
@@ -182,8 +183,8 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 	}
 	req, reqErr := http.NewRequest("GET", fbUrl, nil)
 	if reqErr != nil {
-		fmt.Println(r.URL.String())
-		fmt.Println(reqErr)
+		log.Println("PRINT: ", r.URL.String())
+		log.Println("PRINT: ", reqErr)
 		err = reqErr
 	} else {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -195,13 +196,10 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
 			if err != nil {
-				fmt.Println(r.URL.String())
-				fmt.Println(err)
+				log.Println("PRINT: ", r.URL.String())
+				log.Println("PRINT: ", err)
 			} else if i.Debug {
-				fmt.Println("Retrieved image from from facebook")
-			}
-			if (err == nil) {
-					defer resp.Body.Close()
+				log.Println("PRINT: Retrieved image from from facebook")
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
@@ -209,16 +207,14 @@ func (i *Image) getImageFromFacebook(r *http.Request, legacy bool) (err error) {
 				query := strings.Replace(r.URL.String(), "/facebook", "", -1)
 				url,_ := url.ParseRequestURI(query)
 				r.URL = url
-				if (err == nil) {
-						defer resp.Body.Close()
-				}
 				return i.getImageFromFacebook(r, true)
 			} else {
-				err = errors.New("Error while making request")
+				if (err == nil) {
+					return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
+				} else {
+					log.Println("PRINT: Error while making request")
+				}
 			}
-		}
-		if (err == nil) {
-				defer resp.Body.Close()
 		}
 	}
 	return err
@@ -228,8 +224,8 @@ func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v%v", i.Bucket, i.Path, i.FileName)
 	req, reqErr := http.NewRequest("GET", reqURL, nil)
 	if reqErr != nil {
-		fmt.Println(reqURL)
-		fmt.Println(reqErr)
+		log.Println("PRINT: ", reqURL)
+		log.Println("PRINT: ", reqErr)
 		err = reqErr
 	} else {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
@@ -239,24 +235,25 @@ func (i *Image) getImageFromS3(AWSAccess string, AWSSecret string) (err error) {
 			SecretKey: AWSSecret,
 		})
 		resp, err := http.DefaultClient.Do(req)
-		fmt.Println(resp.StatusCode)
+		if (err == nil) {
+				defer resp.Body.Close()
+		}
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
 			if err != nil {
-				fmt.Println(reqURL)
-				fmt.Println(err)
+				log.Println("PRINT: ", reqURL)
+				log.Println("PRINT: ", err)
+				return err
 			} else if i.Debug {
-				fmt.Println("Retrieved image from from S3")
-			}
-			if (err == nil) {
-					defer resp.Body.Close()
+				log.Println("PRINT: Retrieved image from from S3")
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
-			err = errors.New("Error while making request")
-		}
-		if (err == nil) {
-				defer resp.Body.Close()
+			if (err == nil) {
+				return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
+			} else {
+				log.Println("PRINT: %v Error while making request.", resp.StatusCode)
+			}
 		}
 	}
 	return err

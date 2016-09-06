@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -58,13 +57,13 @@ func Run(verify HandleVerification) {
 	flag.Parse()
 	content, err := ioutil.ReadFile(*envArg)
 	if err != nil {
-		fmt.Print("Error:", err)
+		log.Println("Error:", err)
 		os.Exit(1)
 	}
 	var conf Config
 	err = json.Unmarshal(content, &conf)
 	if err != nil {
-		fmt.Print("Error:", err)
+		log.Println("Error:", err)
 		os.Exit(1)
 	}
 
@@ -84,8 +83,8 @@ func Run(verify HandleVerification) {
 				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
 			} else {
 				if err != nil {
-					fmt.Println(r.URL.String())
-					fmt.Println(err.Error())
+					log.Println(r.URL.String())
+					log.Println(err.Error())
 				}
 				i.getErrorImage()
 				w.WriteHeader(404)
@@ -133,11 +132,11 @@ func Run(verify HandleVerification) {
 			HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
 		}
 		if conf.HTTPSStrict && conf.HTTPSEnabled {
-			http.ListenAndServe(HTTPPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-			}))
+			})})
 		} else {
-			http.ListenAndServe(HTTPPort, r)
+			http.ListenAndServe(HTTPPort, &HttpTimer{r})
 		}
 		wg.Done()
 	}()
