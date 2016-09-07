@@ -105,6 +105,35 @@ func Run(verify HandleVerification) {
 	r.GET("/stat", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.WriteHeader(200)
 	})
+	if conf.Database != "" {
+		r.GET("/backup", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			if (verify == nil || verify(r.URL.Query().Get("t"))) {
+				f, err := os.Open(conf.Database)
+				if err != nil {
+					w.WriteHeader(404)
+					return
+				}
+				file, err := ioutil.ReadAll(f)
+				if err != nil {
+					log.Println(err)
+					ferr := f.Close()
+					if (ferr != nil) {
+						log.Println(ferr)
+					}
+					w.WriteHeader(404)
+					return
+				}
+				ferr := f.Close()
+				if (ferr != nil) {
+					log.Println(ferr)
+				}
+				w.Header().Set("Content-Length", strconv.Itoa(len(file)))
+				w.Write(file)
+			} else {
+					w.WriteHeader(503)
+			}
+		})
+	}
 
 	wg := &sync.WaitGroup{}
 	if conf.validateHTTPS() {
