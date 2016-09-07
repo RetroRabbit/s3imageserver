@@ -92,19 +92,23 @@ func (rwr *ResponseWriter) updateType(rt RequestType) {
   }
 }
 
+func makeTimestamp() int64 {
+    return time.Now().UTC().UnixNano() / (int64(time.Millisecond)/int64(time.Nanosecond))
+}
+
 type HttpTimer struct {
 	wraps http.Handler
   conf    Config
 }
 
-func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from time.Time) {
+func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from int64) {
   if ht.conf.Database != "" {
   	conn, err := sql.Open("sqlite3", ht.conf.Database)
   	if err != nil {
   		log.Println("SQL Open error -> ", err)
       return
   	}
-    _, err = conn.Exec("INSERT INTO requests (id, url, startTime) VALUES ( ? , ? , ? )", id, url, from.Unix())
+    _, err = conn.Exec("INSERT INTO requests (id, url, startTime) VALUES ( ? , ? , ? )", id, url, from)
   	if err != nil {
   		log.Println("SQL Insert error -> ", err)
   	}
@@ -112,14 +116,14 @@ func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from time.Time) {
   }
 }
 
-func (ht *HttpTimer) completeRequest(id uuid.Uuid, to time.Time, size int) {
+func (ht *HttpTimer) completeRequest(id uuid.Uuid, to int64, size int) {
   if ht.conf.Database != "" {
   	conn, err := sql.Open("sqlite3", ht.conf.Database)
   	if err != nil {
   		log.Println("SQL Open error -> ", err)
       return
   	}
-    query := fmt.Sprintf("UPDATE requests set endTime = %v , size = %v where id like \"%v\"", to.Unix(), size, id)
+    query := fmt.Sprintf("UPDATE requests set endTime = %v , size = %v where id like \"%v\"", to, size, id)
     _, err = conn.Exec(query)
   	if err != nil {
   		log.Println("SQL Insert error -> ", err)
@@ -130,13 +134,13 @@ func (ht *HttpTimer) completeRequest(id uuid.Uuid, to time.Time, size int) {
 
 func (ht *HttpTimer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   id := uuid.NewV4()
-  start := time.Now()
+  start := makeTimestamp()
 	if (r.URL.String() != "/stat") {
-	  ht.recordRequest(id, r.URL.String(), start.UTC())
+	  ht.recordRequest(id, r.URL.String(), start)
 	}
 	rwr := &ResponseWriter{w, 0, id, ht.conf}
 	ht.wraps.ServeHTTP(rwr, r)
 	if (r.URL.String() != "/stat") {
-		ht.completeRequest(id, time.Now().UTC(), rwr.counter)
+		ht.completeRequest(id, makeTimestamp(), rwr.counter)
 	}
 }

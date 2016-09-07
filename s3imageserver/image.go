@@ -103,7 +103,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	for _, allowed := range acceptedTypes {
 		if len(filepath.Ext(fileName)) == 0 {
 			image.FileName = filepath.FromSlash(fileName)
-		} else if allowed == filepath.Ext(fileName) {
+		} else if allowed == strings.ToLower(filepath.Ext(fileName)) {
 			image.FileName = filepath.FromSlash(fileName)
 		}
 	}

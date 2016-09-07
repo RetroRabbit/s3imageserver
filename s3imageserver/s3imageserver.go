@@ -106,7 +106,7 @@ func Run(verify HandleVerification) {
 		w.WriteHeader(200)
 	})
 	if conf.Database != "" {
-		r.GET("/backup", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		r.GET("/backup.db", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			if (verify == nil || verify(r.URL.Query().Get("t"))) {
 				f, err := os.Open(conf.Database)
 				if err != nil {
