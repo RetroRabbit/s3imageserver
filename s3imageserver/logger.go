@@ -131,8 +131,12 @@ func (ht *HttpTimer) completeRequest(id uuid.Uuid, to time.Time, size int) {
 func (ht *HttpTimer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   id := uuid.NewV4()
   start := time.Now()
-  ht.recordRequest(id, r.URL.String(), start.UTC())
+	if (r.URL.String() != "/stat") {
+	  ht.recordRequest(id, r.URL.String(), start.UTC())
+	}
 	rwr := &ResponseWriter{w, 0, id, ht.conf}
 	ht.wraps.ServeHTTP(rwr, r)
-	ht.completeRequest(id, time.Now().UTC(), rwr.counter)
+	if (r.URL.String() != "/stat") {
+		ht.completeRequest(id, time.Now().UTC(), rwr.counter)
+	}
 }
