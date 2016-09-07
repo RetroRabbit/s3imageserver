@@ -52,7 +52,7 @@ func (rwr *ResponseWriter) loga(action string, v ...interface{}) {
 }
 
 func (rwr *ResponseWriter) Write(b []byte) (int, error) {
-	rwr.counter += len(b)
+	rwr.counter = len(b)
 	return rwr.wraps.Write(b)
 }
 
