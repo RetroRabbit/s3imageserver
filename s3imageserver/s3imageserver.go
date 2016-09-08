@@ -102,7 +102,7 @@ func Run(verify HandleVerification) {
 			i.write(w)
 		})
 	}
-	r.GET("/stat", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	r.GET("/alive", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.WriteHeader(200)
 	})
 	if conf.Database != "" {
