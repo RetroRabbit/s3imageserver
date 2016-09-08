@@ -33,6 +33,7 @@ type Image struct {
 	ErrorResizeCrop bool
 	OutputFormat    vips.ImageType
 	Enlarge					bool
+	BlurAmount   		float32
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -76,6 +77,10 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if r.URL.Query().Get("q") != "" {
 		quality = int(to.Float64(r.URL.Query().Get("q")))
 	}
+	blurAmount := float32(0)
+	if r.URL.Query().Get("b") != "" {
+		blurAmount = float32(to.Float64(r.URL.Query().Get("b")))
+	}
 	image = &Image{
 		Path:            config.AWS.FilePath,
 		Bucket:          config.AWS.BucketName,
@@ -90,6 +95,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		ErrorResizeCrop: true,
 		OutputFormat:    vips.WEBP,
 		Enlarge:				 enlarge,
+		BlurAmount:			 blurAmount,
 	}
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
@@ -273,6 +279,7 @@ func (i *Image) resizeCrop(w *ResponseWriter) {
 		Quality:      i.Quality,
 		Format:       i.OutputFormat,
 		Enlarge:			i.Enlarge,
+		BlurAmount:		i.BlurAmount,
 	}
 	buf, err := vips.Resize(i.Image, options)
 	if err != nil {
