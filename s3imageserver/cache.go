@@ -73,9 +73,9 @@ func (i *Image) getCachedFileName(w *ResponseWriter, r *http.Request) (fileName 
 	fileNameOnly := i.FileName[0 : len(i.FileName)-len(filepath.Ext(i.FileName))]
 	fileNameOnly = strings.Replace(fileNameOnly, "/", "", -1)
 	if (i.BlurAmount > 0) {
-		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_b%v_i%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.BlurAmount, i.Interlaced, fileNameOnly, allowedMap[i.OutputFormat])
+		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_b%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.BlurAmount, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.OutputFormat])
 	} else {
-		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_i%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.Interlaced, fileNameOnly, allowedMap[i.OutputFormat])
+		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.OutputFormat])
 	}
 }
 

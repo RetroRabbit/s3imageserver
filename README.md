@@ -140,6 +140,9 @@ http://example.com/h/my_image_name.jpg?w=300&h=200&c=true&f=png
 	h = height
 	c = crop
 	f = output format
+	px = pixelation
+	p = profile (c for cellular / w for wifi)
+	q = quality
 
 If you enabled validation, you just pass parameter the desired token as a URL parameter t:
 

@@ -34,6 +34,7 @@ type Image struct {
 	OutputFormat    vips.ImageType
 	Enlarge					bool
 	BlurAmount   		float32
+	Pixelation			int
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -81,6 +82,15 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if r.URL.Query().Get("b") != "" {
 		blurAmount = float32(to.Float64(r.URL.Query().Get("b")))
 	}
+	pixelation := 0
+	if r.URL.Query().Get("px") != "" {
+		pixelation = int(to.Float64(r.URL.Query().Get("px")))
+		if (pixelation > 100) {
+				pixelation = 100
+		} else if (pixelation < 0) {
+				pixelation = 0
+		}
+	}
 	image = &Image{
 		Path:            config.AWS.FilePath,
 		Bucket:          config.AWS.BucketName,
@@ -96,6 +106,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		OutputFormat:    vips.WEBP,
 		Enlarge:				 enlarge,
 		BlurAmount:			 blurAmount,
+		Pixelation:			 pixelation,
 	}
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
@@ -120,6 +131,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if image.Bucket == "" {
 		err = errors.New("Bucket cannot be an empty string")
 	}
+
 	return image, err
 }
 
@@ -144,6 +156,9 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 			w.WriteHeader(404)
 		} else {
 			i.resizeCrop(w)
+			if i.Pixelation > 1 {
+				i.pixelate(w)
+			}
 			go i.writeCache(w, r)
 		}
 	} else {
