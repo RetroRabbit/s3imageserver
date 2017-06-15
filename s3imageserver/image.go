@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
-	"time"
 	"strings"
-	"net/url"
+	"time"
 
 	"github.com/RetroRabbit/vips"
 	"github.com/gosexy/to"
@@ -26,15 +26,15 @@ type Image struct {
 	Height          int
 	Width           int
 	Image           []byte
-	Quality	        int
+	Quality         int
 	CacheTime       int
 	CachePath       string
 	ErrorImage      string
 	ErrorResizeCrop bool
 	OutputFormat    vips.ImageType
-	Enlarge					bool
-	BlurAmount   		float32
-	Pixelation			int
+	Enlarge         bool
+	BlurAmount      float32
+	Pixelation      int
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -57,7 +57,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		width = maxDimension
 	}
 	enlarge := true
-	if r.URL.Query().Get("c") != "" {
+	if r.URL.Query().Get("e") != "" {
 		enlarge = to.Bool(r.URL.Query().Get("e"))
 	}
 	crop := true
@@ -69,9 +69,9 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		interlaced = to.Bool(r.URL.Query().Get("i"))
 	}
 	quality := *config.DefaultQuality
-	if (r.URL.Query().Get("p") != "") {
+	if r.URL.Query().Get("p") != "" {
 		profile := string(r.URL.Query().Get("p"))
-		if (profile == "w" && *config.WifiQuality > 0) {
+		if profile == "w" && *config.WifiQuality > 0 {
 			quality = *config.WifiQuality
 		}
 	}
@@ -85,10 +85,10 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	pixelation := 0
 	if r.URL.Query().Get("px") != "" {
 		pixelation = int(to.Float64(r.URL.Query().Get("px")))
-		if (pixelation > 100) {
-				pixelation = 100
-		} else if (pixelation < 0) {
-				pixelation = 0
+		if pixelation > 100 {
+			pixelation = 100
+		} else if pixelation < 0 {
+			pixelation = 0
 		}
 	}
 	image = &Image{
@@ -96,17 +96,17 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		Bucket:          config.AWS.BucketName,
 		Height:          height,
 		Crop:            crop,
-		Interlaced:			 interlaced,
+		Interlaced:      interlaced,
 		Width:           width,
-		Quality:				 quality,
+		Quality:         quality,
 		CacheTime:       604800, // cache time in seconds, set 0 to infinite and -1 for disabled
 		CachePath:       config.CachePath,
 		ErrorImage:      "",
 		ErrorResizeCrop: true,
 		OutputFormat:    vips.WEBP,
-		Enlarge:				 enlarge,
-		BlurAmount:			 blurAmount,
-		Pixelation:			 pixelation,
+		Enlarge:         enlarge,
+		BlurAmount:      blurAmount,
+		Pixelation:      pixelation,
 	}
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
@@ -144,8 +144,8 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 	}
 	if err != nil {
 		w.updateType(GENERATE)
-		if (Facebook) {
-			err = i.getImageFromFacebook(w, r, FacebookLegacy);
+		if Facebook {
+			err = i.getImageFromFacebook(w, r, FacebookLegacy)
 		} else {
 			err = i.getImageFromS3(w, AWSAccess, AWSSecret)
 		}
@@ -155,18 +155,18 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 			err = i.getErrorImage(w)
 			w.WriteHeader(404)
 		} else {
-      i.resizeCrop(w)
+			i.resizeCrop(w)
 
-      if i.Pixelation > 1 && len(i.Image) > 100 {
-        i.pixelate(w)
-      }
+			if i.Pixelation > 1 && len(i.Image) > 100 {
+				i.pixelate(w)
+			}
 
-      if (len(i.Image) > 100) {
-        go i.writeCache(w, r)
-      } else {
-        w.log("WriteCache", fmt.Sprintf("Image too small to store. Size: %d bytes", len(i.Image)))
-        w.WriteHeader(404)
-      }
+			if len(i.Image) > 100 {
+				go i.writeCache(w, r)
+			} else {
+				w.log("WriteCache", fmt.Sprintf("Image too small to store. Size: %d bytes", len(i.Image)))
+				w.WriteHeader(404)
+			}
 		}
 	} else {
 		w.updateType(CACHED)
@@ -206,7 +206,7 @@ func (i *Image) getErrorImage(w *ResponseWriter) (err error) {
 
 func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy bool) (err error) {
 	fbUrl := fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
-	if (legacy) {
+	if legacy {
 		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
 	}
 	req, reqErr := http.NewRequest("GET", fbUrl, nil)
@@ -218,8 +218,8 @@ func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy 
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 		req.Header.Set("X-Amz-Acl", "public-read")
 		resp, err := http.DefaultClient.Do(req)
-		if (err == nil) {
-				defer resp.Body.Close()
+		if err == nil {
+			defer resp.Body.Close()
 		}
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
@@ -234,11 +234,11 @@ func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy 
 		} else if resp.StatusCode != http.StatusOK {
 			if !legacy {
 				query := strings.Replace(r.URL.String(), "/facebook", "", -1)
-				url,_ := url.ParseRequestURI(query)
+				url, _ := url.ParseRequestURI(query)
 				r.URL = url
 				return i.getImageFromFacebook(w, r, true)
 			} else {
-				if (err == nil) {
+				if err == nil {
 					return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
 				} else {
 					w.log("PRINT: Error while making request")
@@ -264,8 +264,8 @@ func (i *Image) getImageFromS3(w *ResponseWriter, AWSAccess string, AWSSecret st
 			SecretKey: AWSSecret,
 		})
 		resp, err := http.DefaultClient.Do(req)
-		if (err == nil) {
-				defer resp.Body.Close()
+		if err == nil {
+			defer resp.Body.Close()
 		}
 		if err == nil && resp.StatusCode == http.StatusOK {
 			i.Image, err = ioutil.ReadAll(resp.Body)
@@ -279,7 +279,7 @@ func (i *Image) getImageFromS3(w *ResponseWriter, AWSAccess string, AWSSecret st
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
-			if (err == nil) {
+			if err == nil {
 				return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
 			} else {
 				w.log("PRINT: %v Error while making request.", resp.StatusCode)
@@ -296,12 +296,12 @@ func (i *Image) resizeCrop(w *ResponseWriter) {
 		Crop:         i.Crop,
 		Extend:       vips.EXTEND_WHITE,
 		Interpolator: vips.BICUBIC,
-		Interlaced: 	i.Interlaced,
+		Interlaced:   i.Interlaced,
 		Gravity:      vips.CENTRE,
 		Quality:      i.Quality,
 		Format:       i.OutputFormat,
-		Enlarge:			i.Enlarge,
-		BlurAmount:		i.BlurAmount,
+		Enlarge:      i.Enlarge,
+		BlurAmount:   i.BlurAmount,
 	}
 	buf, err := vips.Resize(i.Image, options)
 	if err != nil {
