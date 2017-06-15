@@ -155,11 +155,18 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 			err = i.getErrorImage(w)
 			w.WriteHeader(404)
 		} else {
-			i.resizeCrop(w)
-			if i.Pixelation > 1 {
-				i.pixelate(w)
-			}
-			go i.writeCache(w, r)
+      i.resizeCrop(w)
+
+      if i.Pixelation > 1 && len(i.Image) > 100 {
+        i.pixelate(w)
+      }
+
+      if (len(i.Image) > 100) {
+        go i.writeCache(w, r)
+      } else {
+        w.log("WriteCache", fmt.Sprintf("Image too small to store. Size: %d bytes", len(i.Image)))
+        w.WriteHeader(404)
+      }
 		}
 	} else {
 		w.updateType(CACHED)
