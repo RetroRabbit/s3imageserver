@@ -54,6 +54,7 @@ type HandlerConfig struct {
 	DefaultWidth         *int     `json:"default_width"`
 	DefaultHeight        *int     `json:"default_height"`
 	DefaultQuality       *int     `json:"default_quality"`
+	DefaultDontCrop      bool     `json:"default_dont_crop"`
 	WifiQuality          *int     `json:"wifi_quality"`
 	VerificationRequired *bool    `json:"verification_required"`
 }
