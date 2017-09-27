@@ -9,17 +9,17 @@ import (
 	"net/http"
 	"os"
 
-  "reflect"
+	"reflect"
 
-	"strconv"
-	"sync"
-	"strings"
-	"net/url"
 	"database/sql"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/julienschmidt/httprouter"
-  "github.com/twinj/uuid"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/twinj/uuid"
 )
 
 type Config struct {
@@ -30,7 +30,7 @@ type Config struct {
 	HTTPSPort    int             `json:"https_port"`
 	HTTPSCert    string          `json:"https_cert"`
 	HTTPSKey     string          `json:"https_key"`
-	Database		 string					 `json:"database"`
+	Database     string          `json:"database"`
 }
 
 type HandlerConfig struct {
@@ -42,18 +42,20 @@ type HandlerConfig struct {
 		BucketName string `json:"bucket_name"`
 		FilePath   string `json:"file_path"`
 	} `json:"aws"`
-	Facebook		 bool    `json:"facebook"`
-	FacebookLegacy		 bool    `json:"facebook_lecagy"`
-	ErrorImage   string   `json:"error_image"`
-	Allowed      []string `json:"allowed_formats"`
-	OutputFormat string   `json:"output_format"`
-	CachePath    string   `json:"cache_path"`
-	CacheTime    *int     `json:"cache_time"`
-	DefaultWidth    	*int     `json:"default_width"`
-	DefaultHeight    	*int     `json:"default_height"`
-	DefaultQuality    *int     `json:"default_quality"`
-	WifiQuality    *int     `json:"wifi_quality"`
-	VerificationRequired    *bool     `json:"verification_required"`
+	Facebook             bool     `json:"facebook"`
+	FacebookLegacy       bool     `json:"facebook_lecagy"`
+	FacebookGraph        bool     `json:"facebook_graph"`
+	GoogleGraph          bool     `json:"google_graph"`
+	ErrorImage           string   `json:"error_image"`
+	Allowed              []string `json:"allowed_formats"`
+	OutputFormat         string   `json:"output_format"`
+	CachePath            string   `json:"cache_path"`
+	CacheTime            *int     `json:"cache_time"`
+	DefaultWidth         *int     `json:"default_width"`
+	DefaultHeight        *int     `json:"default_height"`
+	DefaultQuality       *int     `json:"default_quality"`
+	WifiQuality          *int     `json:"wifi_quality"`
+	VerificationRequired *bool    `json:"verification_required"`
 }
 
 type HandleVerification func(string) bool
@@ -89,7 +91,7 @@ func Run(verify HandleVerification) {
 			i, err := NewImage(w, r, handler, param)
 			i.ErrorImage = handler.ErrorImage
 			if err == nil && (verify == nil || !*handler.VerificationRequired || verify(r.URL.Query().Get("t"))) {
-				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy)
+				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy, handler.FacebookGraph, handler.GoogleGraph)
 			} else {
 				if err != nil {
 					log.Println(r.URL.String())
@@ -107,7 +109,7 @@ func Run(verify HandleVerification) {
 	})
 	if conf.Database != "" {
 		r.GET("/backup.db", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			if (verify == nil || verify(r.URL.Query().Get("t"))) {
+			if verify == nil || verify(r.URL.Query().Get("t")) {
 				f, err := os.Open(conf.Database)
 				if err != nil {
 					w.WriteHeader(404)
@@ -117,20 +119,20 @@ func Run(verify HandleVerification) {
 				if err != nil {
 					log.Println(err)
 					ferr := f.Close()
-					if (ferr != nil) {
+					if ferr != nil {
 						log.Println(ferr)
 					}
 					w.WriteHeader(404)
 					return
 				}
 				ferr := f.Close()
-				if (ferr != nil) {
+				if ferr != nil {
 					log.Println(ferr)
 				}
 				w.Header().Set("Content-Length", strconv.Itoa(len(file)))
 				w.Write(file)
 			} else {
-					w.WriteHeader(503)
+				w.WriteHeader(503)
 			}
 		})
 	}
@@ -185,29 +187,29 @@ func Run(verify HandleVerification) {
 func databaseInit(conf Config) {
 	if conf.Database != "" {
 		conn, err := sql.Open("sqlite3", conf.Database)
-  	if err != nil {
-  		log.Println("SQL Open error -> ", err)
-      return
-  	}
-  	_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"request_actions\" ( `id` TEXT NOT NULL UNIQUE, `requestId` TEXT NOT NULL, `action` TEXT, `result` TEXT, PRIMARY KEY(`id`) )")
-  	if err != nil {
-  		log.Println("SQL Create Table error -> ", err)
-  	}
-  	_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"requests\" ( `id` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL, `startTime` INTEGER DEFAULT 0, `endTime` INTEGER DEFAULT 0, `size` INTEGER DEFAULT 0, `type` INTEGER DEFAULT 0, `s3Size`	INTEGER DEFAULT 0, PRIMARY KEY(`id`) )")
-  	if err != nil {
-  		log.Println("SQL Create Table error -> ", err)
-  	}
-    conn.Close()
+		if err != nil {
+			log.Println("SQL Open error -> ", err)
+			return
+		}
+		_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"request_actions\" ( `id` TEXT NOT NULL UNIQUE, `requestId` TEXT NOT NULL, `action` TEXT, `result` TEXT, PRIMARY KEY(`id`) )")
+		if err != nil {
+			log.Println("SQL Create Table error -> ", err)
+		}
+		_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"requests\" ( `id` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL, `startTime` INTEGER DEFAULT 0, `endTime` INTEGER DEFAULT 0, `size` INTEGER DEFAULT 0, `type` INTEGER DEFAULT 0, `s3Size`	INTEGER DEFAULT 0, PRIMARY KEY(`id`) )")
+		if err != nil {
+			log.Println("SQL Create Table error -> ", err)
+		}
+		conn.Close()
 	}
 }
 
 func cleanURL(r *http.Request) {
 	query := strings.SplitN(r.URL.String(), "?", 2)
 	queryString := query[0]
-	if (len(query) > 1) {
+	if len(query) > 1 {
 		queryString = queryString + "?" + strings.Replace(query[1], "?", "&", -1)
 	}
-	url,_ := url.ParseRequestURI(queryString)
+	url, _ := url.ParseRequestURI(queryString)
 	r.URL = url
 }
 

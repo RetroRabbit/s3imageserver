@@ -135,7 +135,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	return image, err
 }
 
-func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool) {
+func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool, FacebookGraph bool, GoogleGraph bool) {
 	var err error
 	if i.CacheTime > -1 {
 		err = i.getFromCache(w, r)
@@ -144,8 +144,10 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 	}
 	if err != nil {
 		w.updateType(GENERATE)
-		if Facebook {
-			err = i.getImageFromFacebook(w, r, FacebookLegacy)
+		if Facebook || GoogleGraph {
+			err = i.getImageFromExternal(w, r, Facebook, FacebookLegacy, GoogleGraph, FacebookGraph || GoogleGraph)
+		} else if GoogleGraph {
+			err = i.getImageFromS3(w, AWSAccess, AWSSecret)
 		} else {
 			err = i.getImageFromS3(w, AWSAccess, AWSSecret)
 		}
@@ -204,10 +206,20 @@ func (i *Image) getErrorImage(w *ResponseWriter) (err error) {
 	return errors.New("Error image not specified")
 }
 
-func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy bool) (err error) {
-	fbUrl := fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
-	if legacy {
-		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
+func (i *Image) getImageFromExternal(w *ResponseWriter, r *http.Request, facebook bool, fbLegacy bool, google bool, graph bool) (err error) {
+	var fbUrl string
+	if facebook {
+		fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net/%v", i.FileName)
+		if fbLegacy {
+			fbUrl = fmt.Sprintf("https://scontent.xx.fbcdn.net%v", r.URL.String())
+		} else if graph {
+			fbUrl = fmt.Sprintf("https://graph.facebook.com/%v?%v", i.FileName, r.URL.RawQuery)
+		}
+	} else if google {
+		fbUrl = fmt.Sprintf("https://image.google.com/%v?%v", i.FileName, r.URL.RawQuery)
+		if graph {
+			fbUrl = fmt.Sprintf("https://lh3.googleusercontent.com/%v?%v", i.FileName, r.URL.RawQuery)
+		}
 	}
 	req, reqErr := http.NewRequest("GET", fbUrl, nil)
 	if reqErr != nil {
@@ -232,11 +244,19 @@ func (i *Image) getImageFromFacebook(w *ResponseWriter, r *http.Request, legacy 
 			}
 			return nil
 		} else if resp.StatusCode != http.StatusOK {
-			if !legacy {
-				query := strings.Replace(r.URL.String(), "/facebook", "", -1)
-				url, _ := url.ParseRequestURI(query)
-				r.URL = url
-				return i.getImageFromFacebook(w, r, true)
+			if facebook {
+				if !fbLegacy && !graph {
+					query := strings.Replace(r.URL.String(), "/facebook", "", -1)
+					url, _ := url.ParseRequestURI(query)
+					r.URL = url
+					return i.getImageFromExternal(w, r, facebook, true, google, graph)
+				} else {
+					if err == nil {
+						return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
+					} else {
+						w.log("PRINT: Error while making request")
+					}
+				}
 			} else {
 				if err == nil {
 					return errors.New(fmt.Sprintf("%v error while making request", resp.StatusCode))
