@@ -27,13 +27,13 @@ func (i *Image) getFromCache(w *ResponseWriter, r *http.Request) (err error) {
 		if err != nil {
 			w.log(err)
 			ferr := f.Close()
-			if (ferr != nil) {
+			if ferr != nil {
 				w.log(ferr)
 			}
 			return err
 		}
 		ferr := f.Close()
-		if (ferr != nil) {
+		if ferr != nil {
 			w.log(ferr)
 		}
 		i.Image = file
@@ -72,10 +72,12 @@ func (i *Image) getCachedFileName(w *ResponseWriter, r *http.Request) (fileName 
 	}
 	fileNameOnly := i.FileName[0 : len(i.FileName)-len(filepath.Ext(i.FileName))]
 	fileNameOnly = strings.Replace(fileNameOnly, "/", "", -1)
-	if (i.BlurAmount > 0) {
-		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_b%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.BlurAmount, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.OutputFormat])
+	if i.BlurAmount > 0 {
+		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_b%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.BlurAmount, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.SaveFormat])
+	} else if r.URL.Query().Get("f") != "" {
+		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_b%v_i%v_px%v_f%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.BlurAmount, i.Interlaced, i.Pixelation, r.URL.Query().Get("f"), fileNameOnly, allowedMap[i.SaveFormat])
 	} else {
-		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.OutputFormat])
+		return fmt.Sprintf("%v/%v_w%v_h%v_c%v_q%v_i%v_px%v_%v%v", i.CachePath, pathPrefix, i.Width, i.Height, i.Crop, i.Quality, i.Interlaced, i.Pixelation, fileNameOnly, allowedMap[i.SaveFormat])
 	}
 }
 

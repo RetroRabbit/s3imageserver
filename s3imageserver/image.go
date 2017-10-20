@@ -1,6 +1,7 @@
 package s3imageserver
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	img "image"
 
 	"github.com/RetroRabbit/vips"
 	"github.com/gosexy/to"
@@ -32,6 +35,7 @@ type Image struct {
 	ErrorImage      string
 	ErrorResizeCrop bool
 	OutputFormat    vips.ImageType
+	SaveFormat      vips.ImageType
 	Enlarge         bool
 	BlurAmount      float32
 	Pixelation      int
@@ -104,6 +108,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		ErrorImage:      "",
 		ErrorResizeCrop: true,
 		OutputFormat:    vips.WEBP,
+		SaveFormat:      vips.WEBP,
 		Enlarge:         enlarge,
 		BlurAmount:      blurAmount,
 		Pixelation:      pixelation,
@@ -111,8 +116,10 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
 	}
+
 	image.isFormatSupported(config.OutputFormat)
 	image.isFormatSupported(r.URL.Query().Get("f"))
+
 	acceptedTypes := allowedTypes
 	if config.Allowed != nil && len(config.Allowed) > 0 {
 		acceptedTypes = config.Allowed
@@ -124,6 +131,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 			image.FileName = filepath.FromSlash(fileName)
 		}
 	}
+
 	if image.FileName == "" {
 		w.log("PRINT: FileName: " + fileName)
 		err = errors.New("File name cannot be an empty string")
@@ -133,6 +141,17 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	}
 
 	return image, err
+}
+
+func (i *Image) setImageOuputFormat(r *http.Request) {
+	// Guess image mime types from gif/jpeg/png/webp
+	_, format, err := img.DecodeConfig(bytes.NewReader(i.Image))
+	if format != "" && err == nil {
+		saveExt := i.OutputFormat
+		i.isFormatSupported(format)
+		i.SaveFormat = saveExt
+	}
+	i.isFormatSupported(r.URL.Query().Get("f"))
 }
 
 func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool, FacebookGraph bool, GoogleGraph bool) {
@@ -157,6 +176,7 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 			err = i.getErrorImage(w)
 			w.WriteHeader(404)
 		} else {
+			i.setImageOuputFormat(r)
 			i.resizeCrop(w)
 
 			if i.Pixelation > 1 && len(i.Image) > 100 {
@@ -182,6 +202,7 @@ func (i *Image) isFormatSupported(format string) {
 		for v, k := range allowedMap {
 			if k == format {
 				i.OutputFormat = v
+				i.SaveFormat = v
 			}
 		}
 	}
