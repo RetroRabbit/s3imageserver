@@ -165,23 +165,24 @@ func Run(verify HandleVerification) {
 			log.Fatal(hot.ListenAndServeTLS(conf.HTTPSCert, conf.HTTPSKey))
 			wg.Done()
 		}()
+	} else {
+		wg.Add(1)
+		go func() {
+			HTTPPort := ":80"
+			if conf.HTTPPort != 0 {
+				HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
+			}
+			log.Println("Starting on port ", HTTPPort)
+			if conf.HTTPSStrict && conf.HTTPSEnabled {
+				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
+				}), conf}))
+			} else {
+				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{r, conf}))
+			}
+			wg.Done()
+		}()
 	}
-	wg.Add(1)
-	go func() {
-		HTTPPort := ":80"
-		if conf.HTTPPort != 0 {
-			HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
-		}
-		log.Println("Starting on port ", HTTPPort)
-		if conf.HTTPSStrict && conf.HTTPSEnabled {
-			http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-			}), conf})
-		} else {
-			http.ListenAndServe(HTTPPort, &HttpTimer{r, conf})
-		}
-		wg.Done()
-	}()
 	wg.Wait()
 }
 
