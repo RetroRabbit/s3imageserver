@@ -32,6 +32,7 @@ type Image struct {
 	Quality         int
 	CacheTime       int
 	CachePath       string
+	CacheEnabled    bool
 	ErrorImage      string
 	ErrorResizeCrop bool
 	OutputFormat    vips.ImageType
@@ -105,6 +106,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		Quality:         quality,
 		CacheTime:       604800, // cache time in seconds, set 0 to infinite and -1 for disabled
 		CachePath:       config.CachePath,
+		CacheEnabled:    true,
 		ErrorImage:      "",
 		ErrorResizeCrop: true,
 		OutputFormat:    vips.WEBP,
@@ -115,6 +117,9 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	}
 	if config.CacheTime != nil {
 		image.CacheTime = *config.CacheTime
+	}
+	if config.CacheEnabled != nil {
+		image.CacheEnabled = *config.CacheEnabled
 	}
 
 	image.isFormatSupported(config.OutputFormat)
@@ -156,7 +161,7 @@ func (i *Image) setImageOuputFormat(r *http.Request) {
 
 func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool, FacebookGraph bool, GoogleGraph bool) {
 	var err error
-	if i.CacheTime > -1 {
+	if i.CacheEnabled && i.CacheTime > -1 {
 		err = i.getFromCache(w, r)
 	} else {
 		err = errors.New("Caching disabled")

@@ -23,15 +23,15 @@ import (
 )
 
 type Config struct {
-	Handlers     []HandlerConfig `json:"handlers"`
-	HTTPPort     int             `json:"http_port"`
-	HTTPSEnabled bool            `json:"https_enabled"`
-	HTTPSStrict  bool            `json:"https_strict"`
-	HTTPSPort    int             `json:"https_port"`
-	HTTPSCert    string          `json:"https_cert"`
-	HTTPSKey     string          `json:"https_key"`
-	Database     string          `json:"database"`
-	CallbackEnabled     bool          `json:"callback_enabled"`
+	Handlers        []HandlerConfig `json:"handlers"`
+	HTTPPort        int             `json:"http_port"`
+	HTTPSEnabled    bool            `json:"https_enabled"`
+	HTTPSStrict     bool            `json:"https_strict"`
+	HTTPSPort       int             `json:"https_port"`
+	HTTPSCert       string          `json:"https_cert"`
+	HTTPSKey        string          `json:"https_key"`
+	Database        string          `json:"database"`
+	CallbackEnabled bool            `json:"callback_enabled"`
 }
 
 type HandlerConfig struct {
@@ -52,6 +52,7 @@ type HandlerConfig struct {
 	OutputFormat         string   `json:"output_format"`
 	CachePath            string   `json:"cache_path"`
 	CacheTime            *int     `json:"cache_time"`
+	CacheEnabled         *bool    `json:"cache_enabled"`
 	DefaultWidth         *int     `json:"default_width"`
 	DefaultHeight        *int     `json:"default_height"`
 	DefaultQuality       *int     `json:"default_quality"`
