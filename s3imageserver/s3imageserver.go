@@ -31,6 +31,7 @@ type Config struct {
 	HTTPSCert    string          `json:"https_cert"`
 	HTTPSKey     string          `json:"https_key"`
 	Database     string          `json:"database"`
+	CallbackEnabled     bool          `json:"callback_enabled"`
 }
 
 type HandlerConfig struct {
@@ -61,7 +62,7 @@ type HandlerConfig struct {
 
 type HandleVerification func(string) bool
 
-func Run(verify HandleVerification) {
+func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEvent) {
 	uuid.Init()
 	envArg := flag.String("c", "config.json", "Configuration")
 	flag.Parse()
@@ -77,6 +78,10 @@ func Run(verify HandleVerification) {
 		os.Exit(1)
 	}
 	databaseInit(conf)
+	var callbackChan chan CallEvent = nil
+	if conf.CallbackEnabled {
+		callbackChan = make(chan CallEvent)
+	}
 
 	r := httprouter.New()
 	for _, handle := range conf.Handlers {
@@ -157,7 +162,7 @@ func Run(verify HandleVerification) {
 		}
 		hot := http.Server{
 			Addr:      ":" + strconv.Itoa(conf.HTTPSPort),
-			Handler:   r,
+			Handler:   &HttpTimer{r, conf, callbackChan},
 			TLSConfig: &config,
 		}
 		wg.Add(1)
@@ -176,14 +181,14 @@ func Run(verify HandleVerification) {
 			if conf.HTTPSStrict && conf.HTTPSEnabled {
 				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-				}), conf}))
+				}), conf, callbackChan}))
 			} else {
-				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{r, conf}))
+				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{r, conf, callbackChan}))
 			}
 			wg.Done()
 		}()
 	}
-	wg.Wait()
+	return wg, callbackChan
 }
 
 func databaseInit(conf Config) {
