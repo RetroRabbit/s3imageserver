@@ -189,7 +189,9 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 			}
 
 			if len(i.Image) > 100 {
-				go i.writeCache(w, r)
+				if i.CacheEnabled {
+					go i.writeCache(w, r)
+				}
 			} else {
 				w.log("WriteCache", fmt.Sprintf("Image too small to store. Size: %d bytes", len(i.Image)))
 				w.WriteHeader(404)

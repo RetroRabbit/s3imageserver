@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -78,11 +79,21 @@ func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEve
 		log.Println("Error:", err)
 		os.Exit(1)
 	}
+	fmt.Println("Initializing...")
+	fmt.Println("HTTPS_Enabled:", conf.HTTPSEnabled)
+	if conf.HTTPSEnabled {
+		fmt.Println("Port:", conf.HTTPSPort)
+		fmt.Println("Strict:", conf.HTTPSStrict)
+	} else {
+		fmt.Println("Port:", conf.HTTPPort)
+	}
+	fmt.Println("Database:", conf.Database)
 	databaseInit(conf)
 	var callbackChan chan CallEvent = nil
 	if conf.CallbackEnabled {
 		callbackChan = make(chan CallEvent)
 	}
+	fmt.Println("CallbackEnabled:", conf.CallbackEnabled, callbackChan == nil)
 
 	r := httprouter.New()
 	for _, handle := range conf.Handlers {
