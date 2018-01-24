@@ -13,6 +13,9 @@ import (
 )
 
 func (i *Image) getFromCache(w *ResponseWriter, r *http.Request) (err error) {
+	if !i.CacheEnabled {
+		return errors.New("Cache disabled")
+	}
 	newFileName := i.getCachedFileName(w, r)
 	info, err := os.Stat(newFileName)
 	if err != nil {
@@ -47,9 +50,11 @@ func (i *Image) getFromCache(w *ResponseWriter, r *http.Request) (err error) {
 }
 
 func (i *Image) writeCache(w *ResponseWriter, r *http.Request) {
-	err := ioutil.WriteFile(i.getCachedFileName(w, r), i.Image, 0644)
-	if err != nil {
-		w.log(err)
+	if i.CacheEnabled {
+		err := ioutil.WriteFile(i.getCachedFileName(w, r), i.Image, 0644)
+		if err != nil {
+			w.log(err)
+		}
 	}
 }
 

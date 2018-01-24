@@ -111,11 +111,9 @@ type CallEvent struct {
 	ResponseSize int
 }
 
-
 func (s CallEvent) String() string {
-	return fmt.Sprintf("Id: %s, Url: %s, Duration: %dms, Size: %d", s.Id, s.Url, s.EndTime - s.StartTime, s.ResponseSize)
+	return fmt.Sprintf("Id: %s, Url: %s, Duration: %dms, Size: %d", s.Id, s.Url, s.EndTime-s.StartTime, s.ResponseSize)
 }
-
 
 func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from int64) {
 	if ht.conf.Database != "" {
@@ -129,6 +127,8 @@ func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from int64) {
 			log.Println("SQL Insert error -> ", err)
 		}
 		conn.Close()
+	} else {
+		fmt.Println("Image Requested:", url)
 	}
 }
 
@@ -149,7 +149,7 @@ func (ht *HttpTimer) completeRequest(id uuid.Uuid, to int64, size int) {
 }
 
 func isAllowed(url string) bool {
-	return url != "/stat"	&& url != "/alive"	&& url != "/backup.db"
+	return url != "/stat" && url != "/alive" && url != "/backup.db"
 }
 
 func (ht *HttpTimer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
