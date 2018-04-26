@@ -66,12 +66,13 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if r.URL.Query().Get("e") != "" {
 		enlarge = to.Bool(r.URL.Query().Get("e"))
 	}
+	featureCrop := false
 	crop := !config.DefaultDontCrop
 	if r.URL.Query().Get("c") != "" {
 		crop = to.Bool(r.URL.Query().Get("c"))
 	}
-	featureCrop := false
-	featureCrop = *config.DefaultFeatureCrop
+	//should only use the default if cropping is set to true
+	featureCrop = *config.DefaultFeatureCrop && crop
 	if r.URL.Query().Get("fc") != "" {
 		featureCrop = to.Bool(r.URL.Query().Get("fc"))
 	}
