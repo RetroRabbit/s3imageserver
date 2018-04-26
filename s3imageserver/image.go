@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -24,6 +25,7 @@ type Image struct {
 	FileName        string
 	Bucket          string
 	Crop            bool
+	FeatureCrop     bool
 	Debug           bool
 	Interlaced      bool
 	Height          int
@@ -69,6 +71,10 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if r.URL.Query().Get("c") != "" {
 		crop = to.Bool(r.URL.Query().Get("c"))
 	}
+	featureCrop := false
+	if r.URL.Query().Get("fc") != "" {
+		featureCrop = to.Bool(r.URL.Query().Get("fc"))
+	}
 	interlaced := true
 	if r.URL.Query().Get("i") != "" {
 		interlaced = to.Bool(r.URL.Query().Get("i"))
@@ -101,6 +107,7 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 		Bucket:          config.AWS.BucketName,
 		Height:          height,
 		Crop:            crop,
+		FeatureCrop:     featureCrop,
 		Interlaced:      interlaced,
 		Width:           width,
 		Quality:         quality,
@@ -342,6 +349,7 @@ func (i *Image) resizeCrop(w *ResponseWriter) {
 		Width:        i.Width,
 		Height:       i.Height,
 		Crop:         i.Crop,
+		FeatureCrop:  i.FeatureCrop,
 		Extend:       vips.EXTEND_WHITE,
 		Interpolator: vips.BICUBIC,
 		Interlaced:   i.Interlaced,
