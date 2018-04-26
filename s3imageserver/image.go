@@ -70,7 +70,8 @@ func NewImage(w *ResponseWriter, r *http.Request, config HandlerConfig, fileName
 	if r.URL.Query().Get("c") != "" {
 		crop = to.Bool(r.URL.Query().Get("c"))
 	}
-	featureCrop := config.DefaultFeatureCrop
+	featureCrop := false
+	featureCrop = *config.DefaultFeatureCrop
 	if r.URL.Query().Get("fc") != "" {
 		featureCrop = to.Bool(r.URL.Query().Get("fc"))
 	}

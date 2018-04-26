@@ -24,15 +24,16 @@ import (
 )
 
 type Config struct {
-	Handlers        []HandlerConfig `json:"handlers"`
-	HTTPPort        int             `json:"http_port"`
-	HTTPSEnabled    bool            `json:"https_enabled"`
-	HTTPSStrict     bool            `json:"https_strict"`
-	HTTPSPort       int             `json:"https_port"`
-	HTTPSCert       string          `json:"https_cert"`
-	HTTPSKey        string          `json:"https_key"`
-	Database        string          `json:"database"`
-	CallbackEnabled bool            `json:"callback_enabled"`
+	Handlers           []HandlerConfig `json:"handlers"`
+	HTTPPort           int             `json:"http_port"`
+	HTTPSEnabled       bool            `json:"https_enabled"`
+	HTTPSStrict        bool            `json:"https_strict"`
+	HTTPSPort          int             `json:"https_port"`
+	HTTPSCert          string          `json:"https_cert"`
+	HTTPSKey           string          `json:"https_key"`
+	Database           string          `json:"database"`
+	CallbackEnabled    bool            `json:"callback_enabled"`
+	DefaultFeatureCrop bool            `json:"default_feature_crop"`
 }
 
 type HandlerConfig struct {
@@ -58,7 +59,7 @@ type HandlerConfig struct {
 	DefaultHeight        *int     `json:"default_height"`
 	DefaultQuality       *int     `json:"default_quality"`
 	DefaultDontCrop      bool     `json:"default_dont_crop"`
-	DefaultFeatureCrop   bool     `json:"default_feature_crop"`
+	DefaultFeatureCrop   *bool    `json:"default_feature_crop"`
 	WifiQuality          *int     `json:"wifi_quality"`
 	VerificationRequired *bool    `json:"verification_required"`
 }
@@ -102,6 +103,9 @@ func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEve
 		prefix := handler.Name
 		if handler.Prefix != "" {
 			prefix = handler.Prefix
+		}
+		if handler.DefaultFeatureCrop == nil {
+			handler.DefaultFeatureCrop = &conf.DefaultFeatureCrop
 		}
 		r.GET("/"+prefix+"/*param", func(writer http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			w := reflect.ValueOf(writer).Interface().(*ResponseWriter)
