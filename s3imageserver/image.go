@@ -173,7 +173,7 @@ func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, A
 	s := time.Now()
 
 	defer func() {
-		w.log.Printf(">>> DURATION: getImage %s - %v", r.URL, time.Since(s))
+		w.log(fmt.Sprintf(">>> DURATION: getImage %s - %v", r.URL, time.Since(s)))
 	}()
 
 	if i.CacheEnabled && i.CacheTime > -1 {
