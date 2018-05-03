@@ -169,6 +169,13 @@ func (i *Image) setImageOuputFormat(r *http.Request) {
 
 func (i *Image) getImage(w *ResponseWriter, r *http.Request, AWSAccess string, AWSSecret string, Facebook bool, FacebookLegacy bool, FacebookGraph bool, GoogleGraph bool) {
 	var err error
+
+	s := time.Now()
+
+	defer func() {
+		w.log.Printf(">>> DURATION: getImage %s - %v", r.URL, time.Since(s))
+	}()
+
 	if i.CacheEnabled && i.CacheTime > -1 {
 		err = i.getFromCache(w, r)
 	} else {
@@ -265,6 +272,7 @@ func (i *Image) getImageFromExternal(w *ResponseWriter, r *http.Request, faceboo
 	} else {
 		req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 		req.Header.Set("X-Amz-Acl", "public-read")
+		http.DefaultClient.Timeout = 15 * time.Second
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil {
 			defer resp.Body.Close()
@@ -319,6 +327,7 @@ func (i *Image) getImageFromS3(w *ResponseWriter, AWSAccess string, AWSSecret st
 			AccessKey: AWSAccess,
 			SecretKey: AWSSecret,
 		})
+		http.DefaultClient.Timeout = 15 * time.Second
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil {
 			defer resp.Body.Close()
