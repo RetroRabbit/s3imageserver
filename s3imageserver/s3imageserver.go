@@ -20,7 +20,6 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/twinj/uuid"
 )
 
 type Config struct {
@@ -67,7 +66,6 @@ type HandlerConfig struct {
 type HandleVerification func(string) bool
 
 func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEvent) {
-	uuid.Init()
 	envArg := flag.String("c", "config.json", "Configuration")
 	flag.Parse()
 	content, err := ioutil.ReadFile(*envArg)
