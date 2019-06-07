@@ -16,7 +16,7 @@ import (
 type ResponseWriter struct {
 	wraps   http.ResponseWriter
 	counter int
-	id      uuid.Uuid
+	id      uuid.UUID
 	conf    Config
 }
 
@@ -104,7 +104,7 @@ type HttpTimer struct {
 }
 
 type CallEvent struct {
-	Id           uuid.Uuid
+	Id           uuid.UUID
 	StartTime    int64
 	EndTime      int64
 	Url          string
@@ -115,7 +115,7 @@ func (s CallEvent) String() string {
 	return fmt.Sprintf("Id: %s, Url: %s, Duration: %dms, Size: %d", s.Id, s.Url, s.EndTime-s.StartTime, s.ResponseSize)
 }
 
-func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from int64) {
+func (ht *HttpTimer) recordRequest(id uuid.UUID, url string, from int64) {
 	if ht.conf.Database != "" {
 		conn, err := sql.Open("sqlite3", ht.conf.Database)
 		if err != nil {
@@ -132,7 +132,7 @@ func (ht *HttpTimer) recordRequest(id uuid.Uuid, url string, from int64) {
 	}
 }
 
-func (ht *HttpTimer) completeRequest(id uuid.Uuid, to int64, size int) {
+func (ht *HttpTimer) completeRequest(id uuid.UUID, to int64, size int) {
 	if ht.conf.Database != "" {
 		conn, err := sql.Open("sqlite3", ht.conf.Database)
 		if err != nil {
