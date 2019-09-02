@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 
 	"net/url"
 	"strconv"
@@ -38,6 +39,7 @@ type HandlerConfig struct {
 	Allowed              []string        `json:"allowed_formats"`
 	VerificationRequired *bool           `json:"verification_required"`
 	Defaults             *FormatDefaults `json:"defaults"`
+	Rewrite              *RegexRewrite   `json:"rewrite"`
 }
 
 type FormatDefaults struct {
@@ -48,6 +50,11 @@ type FormatDefaults struct {
 	DefaultFeatureCrop *bool  `json:"default_feature_crop"`
 	WifiQuality        *int   `json:"wifi_quality"`
 	DefaultImageFormat string `json:"default_format"`
+}
+
+type RegexRewrite struct {
+	Match   string `json:"match"`
+	Replace string `json:"replace"`
 }
 
 type HandleVerification func(string) bool
@@ -153,10 +160,18 @@ func Run(verify HandleVerification) (done *sync.WaitGroup) {
 }
 
 func Handle(source ImageSource, config HandlerConfig, verify HandleVerification) func(w http.ResponseWriter, req *http.Request) {
+	var match *regexp.Regexp
+	if config.Rewrite != nil {
+		match = regexp.MustCompile(config.Rewrite.Match)
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Handeling", r)
 		//TODO:: This is dodgy AF. it replaces ? with &, impling we get malformed query params
 		cleanURL(r)
+		if match != nil {
+			r.URL.Path = match.ReplaceAllString(r.URL.Path, config.Rewrite.Replace)
+		}
 
 		//Get formatting settings
 		formatting := GetFormatSettings(r, config.Defaults)
