@@ -8,76 +8,70 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
-	"reflect"
-
-	"database/sql"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type Config struct {
-	Handlers           []HandlerConfig `json:"handlers"`
-	HTTPPort           int             `json:"http_port"`
-	HTTPSEnabled       bool            `json:"https_enabled"`
-	HTTPSStrict        bool            `json:"https_strict"`
-	HTTPSPort          int             `json:"https_port"`
-	HTTPSCert          string          `json:"https_cert"`
-	HTTPSKey           string          `json:"https_key"`
-	Database           string          `json:"database"`
-	CallbackEnabled    bool            `json:"callback_enabled"`
-	DefaultFeatureCrop bool            `json:"default_feature_crop"`
+	SourceConfigs   map[string]json.RawMessage `json:"sources"`
+	Routes          []HandlerConfig            `json:"routes"`
+	HTTPPort        int                        `json:"http_port"`
+	HTTPSEnabled    bool                       `json:"https_enabled"`
+	HTTPSStrict     bool                       `json:"https_strict"`
+	HTTPSPort       int                        `json:"https_port"`
+	HTTPSCert       string                     `json:"https_cert"`
+	HTTPSKey        string                     `json:"https_key"`
+	Database        string                     `json:"database"`
+	CallbackEnabled bool                       `json:"callback_enabled"`
+	Defaults        *FormatDefaults            `json:"defaults"`
 }
 
 type HandlerConfig struct {
-	Name   string `json:"name"`
-	Prefix string `json:"prefix"`
-	AWS    struct {
-		AWSAccess  string `json:"aws_access"`
-		AWSSecret  string `json:"aws_secret"`
-		BucketName string `json:"bucket_name"`
-		FilePath   string `json:"file_path"`
-	} `json:"aws"`
-	Facebook             bool     `json:"facebook"`
-	FacebookLegacy       bool     `json:"facebook_lecagy"`
-	FacebookGraph        bool     `json:"facebook_graph"`
-	GoogleGraph          bool     `json:"google_graph"`
-	ErrorImage           string   `json:"error_image"`
-	Allowed              []string `json:"allowed_formats"`
-	OutputFormat         string   `json:"output_format"`
-	CachePath            string   `json:"cache_path"`
-	CacheTime            *int     `json:"cache_time"`
-	CacheEnabled         *bool    `json:"cache_enabled"`
-	DefaultWidth         *int     `json:"default_width"`
-	DefaultHeight        *int     `json:"default_height"`
-	DefaultQuality       *int     `json:"default_quality"`
-	DefaultDontCrop      bool     `json:"default_dont_crop"`
-	DefaultFeatureCrop   *bool    `json:"default_feature_crop"`
-	WifiQuality          *int     `json:"wifi_quality"`
-	VerificationRequired *bool    `json:"verification_required"`
+	Route                string          `json:"route"`
+	Source               string          `json:"source"`
+	ErrorImage           string          `json:"error_image"`
+	Allowed              []string        `json:"allowed_formats"`
+	VerificationRequired *bool           `json:"verification_required"`
+	Defaults             *FormatDefaults `json:"defaults"`
+}
+
+type FormatDefaults struct {
+	DefaultWidth       *int   `json:"default_width"`
+	DefaultHeight      *int   `json:"default_height"`
+	DefaultQuality     *int   `json:"default_quality"`
+	DefaultDontCrop    bool   `json:"default_dont_crop"`
+	DefaultFeatureCrop *bool  `json:"default_feature_crop"`
+	WifiQuality        *int   `json:"wifi_quality"`
+	DefaultImageFormat string `json:"default_format"`
 }
 
 type HandleVerification func(string) bool
 
-func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEvent) {
+var Sources = &SourceMap{}
+
+func init() {
+	Sources.AddSource("s3", NewS3Source)
+}
+
+func Run(verify HandleVerification) (done *sync.WaitGroup) {
+	done = &sync.WaitGroup{}
 	envArg := flag.String("c", "config.json", "Configuration")
 	flag.Parse()
 	content, err := ioutil.ReadFile(*envArg)
 	if err != nil {
 		log.Println("Error:", err)
-		os.Exit(1)
+		return
 	}
 	var conf Config
 	err = json.Unmarshal(content, &conf)
 	if err != nil {
 		log.Println("Error:", err)
-		os.Exit(1)
+		return
 	}
 	fmt.Println("Initializing...")
 	fmt.Println("HTTPS_Enabled:", conf.HTTPSEnabled)
@@ -87,78 +81,26 @@ func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEve
 	} else {
 		fmt.Println("Port:", conf.HTTPPort)
 	}
-	fmt.Println("Database:", conf.Database)
-	databaseInit(conf)
-	var callbackChan chan CallEvent = nil
-	if conf.CallbackEnabled {
-		callbackChan = make(chan CallEvent)
-	}
-	fmt.Println("CallbackEnabled:", conf.CallbackEnabled, callbackChan == nil)
 
-	r := httprouter.New()
-	for _, handle := range conf.Handlers {
-		handler := handle
-		prefix := handler.Name
-		if handler.Prefix != "" {
-			prefix = handler.Prefix
+	r := http.NewServeMux()
+	for _, handler := range conf.Routes {
+		log.Println("Adding handler", handler.Route)
+
+		if handler.Defaults == nil {
+			handler.Defaults = conf.Defaults
 		}
-		if handler.DefaultFeatureCrop == nil {
-			handler.DefaultFeatureCrop = &conf.DefaultFeatureCrop
+		imgSource, err := Sources.GetSource(handler.Source, conf.SourceConfigs[handler.Source])
+		if err != nil {
+			log.Println("Cannot start handler:", handler.Route, "with source", handler.Source, "due to", err)
+			continue
 		}
-		r.GET("/"+prefix+"/*param", func(writer http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			w := reflect.ValueOf(writer).Interface().(*ResponseWriter)
-			param := strings.TrimPrefix(ps.ByName("param"), "/")
-			cleanURL(r)
-			i, err := NewImage(w, r, handler, param)
-			i.ErrorImage = handler.ErrorImage
-			if err == nil && (verify == nil || !*handler.VerificationRequired || verify(r.URL.Query().Get("t"))) {
-				i.getImage(w, r, handler.AWS.AWSAccess, handler.AWS.AWSSecret, handler.Facebook, handler.FacebookLegacy, handler.FacebookGraph, handler.GoogleGraph)
-			} else {
-				if err != nil {
-					log.Println(r.URL.String())
-					log.Println(err.Error())
-				}
-				i.getErrorImage(w)
-				w.WriteHeader(404)
-				w.Header().Set("Content-Length", strconv.Itoa(len(i.Image)))
-			}
-			i.write(w)
-		})
+
+		r.HandleFunc(handler.Route, Handle(imgSource, handler, verify))
 	}
-	r.GET("/alive", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	r.HandleFunc("/alive", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	})
-	if conf.Database != "" {
-		r.GET("/backup.db", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-			if verify == nil || verify(r.URL.Query().Get("t")) {
-				f, err := os.Open(conf.Database)
-				if err != nil {
-					w.WriteHeader(404)
-					return
-				}
-				file, err := ioutil.ReadAll(f)
-				if err != nil {
-					log.Println(err)
-					ferr := f.Close()
-					if ferr != nil {
-						log.Println(ferr)
-					}
-					w.WriteHeader(404)
-					return
-				}
-				ferr := f.Close()
-				if ferr != nil {
-					log.Println(ferr)
-				}
-				w.Header().Set("Content-Length", strconv.Itoa(len(file)))
-				w.Write(file)
-			} else {
-				w.WriteHeader(503)
-			}
-		})
-	}
 
-	wg := &sync.WaitGroup{}
 	if conf.validateHTTPS() {
 		config := tls.Config{
 			MinVersion:               tls.VersionTLS10,
@@ -177,52 +119,103 @@ func Run(verify HandleVerification) (done *sync.WaitGroup, callback chan CallEve
 		}
 		hot := http.Server{
 			Addr:      ":" + strconv.Itoa(conf.HTTPSPort),
-			Handler:   &HttpTimer{r, conf, callbackChan},
+			Handler:   r,
 			TLSConfig: &config,
 		}
-		wg.Add(1)
+		done.Add(1)
 		go func() {
-			log.Fatal(hot.ListenAndServeTLS(conf.HTTPSCert, conf.HTTPSKey))
-			wg.Done()
-		}()
-	} else {
-		wg.Add(1)
-		go func() {
-			HTTPPort := ":80"
-			if conf.HTTPPort != 0 {
-				HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
-			}
-			log.Println("Starting on port ", HTTPPort)
-			if conf.HTTPSStrict && conf.HTTPSEnabled {
-				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
-				}), conf, callbackChan}))
-			} else {
-				log.Fatal(http.ListenAndServe(HTTPPort, &HttpTimer{r, conf, callbackChan}))
-			}
-			wg.Done()
+			defer done.Done()
+			log.Println(hot.ListenAndServeTLS(conf.HTTPSCert, conf.HTTPSKey))
 		}()
 	}
-	return wg, callbackChan
-}
 
-func databaseInit(conf Config) {
-	if conf.Database != "" {
-		conn, err := sql.Open("sqlite3", conf.Database)
-		if err != nil {
-			log.Println("SQL Open error -> ", err)
+	HTTPPort := ":80"
+	if conf.HTTPPort != 0 {
+		HTTPPort = ":" + strconv.Itoa(conf.HTTPPort)
+	}
+
+	done.Add(1)
+	go func() {
+		defer done.Done()
+		log.Println("Starting on port ", HTTPPort)
+		if conf.HTTPSStrict && conf.HTTPSEnabled {
+			log.Println(http.ListenAndServe(HTTPPort, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				http.Redirect(w, req, "https://"+req.Host+req.RequestURI, http.StatusMovedPermanently)
+			})))
+			return
+		} else {
+			log.Println(http.ListenAndServe(HTTPPort, r))
 			return
 		}
-		_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"request_actions\" ( `id` TEXT NOT NULL UNIQUE, `requestId` TEXT NOT NULL, `action` TEXT, `result` TEXT, PRIMARY KEY(`id`) )")
+	}()
+
+	return done
+}
+
+func Handle(source ImageSource, config HandlerConfig, verify HandleVerification) func(w http.ResponseWriter, req *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Handeling", r)
+		//TODO:: This is dodgy AF. it replaces ? with &, impling we get malformed query params
+		cleanURL(r)
+
+		//Get formatting settings
+		formatting := GetFormatSettings(r, config.Defaults)
+
+		//GET image from source
+		img, err := source.GetImage(r.URL.Path)
 		if err != nil {
-			log.Println("SQL Create Table error -> ", err)
+			log.Printf("GetImage failed for %v with error %+v", r.URL.String(), err)
+			//Mssing img
+			img, err := ErrorImage(config.ErrorImage, formatting)
+			if err != nil {
+				log.Printf("Error getting error img %+v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(img)
+			if err != nil {
+				log.Printf("Error writing result %+v", err)
+			}
+			return
 		}
-		_, err = conn.Exec("CREATE TABLE IF NOT EXISTS \"requests\" ( `id` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL, `startTime` INTEGER DEFAULT 0, `endTime` INTEGER DEFAULT 0, `size` INTEGER DEFAULT 0, `type` INTEGER DEFAULT 0, `s3Size`	INTEGER DEFAULT 0, PRIMARY KEY(`id`) )")
+
+		log.Println("Image with size", len(img), err)
+
+		//Resize and/or crop + Present in encoding
+		resultImg, err := ResizeCrop(img, formatting)
 		if err != nil {
-			log.Println("SQL Create Table error -> ", err)
+			log.Printf("ResizeCrop failed for %v with error %+v", r.URL.String(), err)
+			//Mssing img
+			img, err := ErrorImage(config.ErrorImage, formatting)
+			if err != nil {
+				log.Printf("Error getting error img %+v", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(img)
+			if err != nil {
+				log.Printf("Error writing result %+v", err)
+			}
+			return
 		}
-		conn.Close()
+
+		w.Header().Set("Content-Length", strconv.Itoa(len(resultImg)))
+		_, err = w.Write(resultImg)
+		if err != nil {
+			log.Printf("Error writing result %+v", err)
+		}
 	}
+}
+
+func ErrorImage(url string, formatting *FormatSettings) ([]byte, error) {
+	if url != "" {
+		Image, err := ioutil.ReadFile(url)
+		if err != nil {
+			return nil, err
+		}
+		return ResizeCrop(Image, formatting)
+	}
+	return nil, nil
 }
 
 func cleanURL(r *http.Request) {

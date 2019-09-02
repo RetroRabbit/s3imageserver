@@ -9,7 +9,8 @@ import (
 )
 
 func main() {
-	s3imageserver.Run(nil)
+	wg := s3imageserver.Run(nil)
+	wg.Wait()
 }
 
 func verifyToken(tokenString string) bool {
