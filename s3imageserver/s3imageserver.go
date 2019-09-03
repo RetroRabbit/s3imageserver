@@ -63,6 +63,7 @@ var Sources = &SourceMap{}
 
 func init() {
 	Sources.AddSource("s3", NewS3Source)
+	Sources.AddSource("s3Thumb", NewS3PreviewSource())
 }
 
 func Run(verify HandleVerification) (done *sync.WaitGroup) {
@@ -161,15 +162,19 @@ func Run(verify HandleVerification) (done *sync.WaitGroup) {
 
 func Handle(source ImageSource, config HandlerConfig, verify HandleVerification) func(w http.ResponseWriter, req *http.Request) {
 	var match *regexp.Regexp
+
 	if config.Rewrite != nil {
 		match = regexp.MustCompile(config.Rewrite.Match)
+	} else {
+		fmt.Println("rewrite is nil for route", config.Route)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Handeling", r)
+		log.Println(config.Route, "Handeling", r)
 		//TODO:: This is dodgy AF. it replaces ? with &, impling we get malformed query params
 		cleanURL(r)
 		if match != nil {
+			fmt.Println("Replacing all", config.Rewrite.Match, "with", config.Rewrite.Replace)
 			r.URL.Path = match.ReplaceAllString(r.URL.Path, config.Rewrite.Replace)
 		}
 
