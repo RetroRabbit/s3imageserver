@@ -166,7 +166,7 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 	if config.Rewrite != nil {
 		match = regexp.MustCompile(config.Rewrite.Match)
 	} else {
-		fmt.Println("rewrite is nil for route", config.Route)
+		log.Println("rewrite is nil for route", config.Route)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,6 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 		//TODO:: This is dodgy AF. it replaces ? with &, impling we get malformed query params
 		cleanURL(r)
 		if match != nil {
-			fmt.Println("Replacing all", config.Rewrite.Match, "with", config.Rewrite.Replace)
 			r.URL.Path = match.ReplaceAllString(r.URL.Path, config.Rewrite.Replace)
 		}
 

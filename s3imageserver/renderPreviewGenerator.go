@@ -2,8 +2,8 @@ package s3imageserver
 
 import (
 	"bytes"
-	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -16,7 +16,7 @@ type PreviewGenerator struct {
 
 func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadCloser, error) {
 	tempPath := path.Join(os.TempDir(), filename)
-	fmt.Println("Temp file at", tempPath)
+	log.Println("Temp file at", tempPath)
 	tempFile, err := os.Create(tempPath)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 
 	resultingImg := stdOut.String()
 	resultingImg = strings.TrimSpace(resultingImg)
-	fmt.Println("thumbnail at", resultingImg)
+	log.Println("thumbnail at", resultingImg)
 
 	thumbnail, err := os.Open(resultingImg)
 	if err != nil {
