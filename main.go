@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/RetroRabbit/s3imageserver/s3imageserver"
+	"github.com/RetroRabbit/s3imageserver/v3/s3imageserver"
 	"github.com/dgrijalva/jwt-go"
 )
 

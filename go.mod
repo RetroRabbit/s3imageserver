@@ -1,4 +1,4 @@
-module github.com/RetroRabbit/s3imageserver
+module github.com/RetroRabbit/s3imageserver/v3
 
 go 1.12
 
@@ -14,5 +14,5 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/twinj/uuid v1.0.0
-	golang.org/x/image v0.0.0-20190823064033-3a9bac650e44 // indirect
+	golang.org/x/image v0.0.0-20190902063713-cb417be4ba39 // indirect
 )
