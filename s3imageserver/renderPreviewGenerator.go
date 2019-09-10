@@ -25,6 +25,10 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 	if err != nil {
 		return nil, err
 	}
+	err = tempFile.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	stdOut := &bytes.Buffer{}
 
