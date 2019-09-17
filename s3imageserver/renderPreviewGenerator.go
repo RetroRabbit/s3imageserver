@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type PreviewGenerator struct {
@@ -31,9 +33,11 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 	}
 
 	stdOut := &bytes.Buffer{}
+	stdErr := &bytes.Buffer{}
 
 	cmd := exec.Command(pg.Command[0], append(pg.Command[1:], tempPath)...)
 	cmd.Stdout = stdOut
+	cmd.Stderr = stdErr
 
 	err = cmd.Run()
 	if err != nil {
@@ -46,7 +50,7 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 
 	thumbnail, err := os.Open(resultingImg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, string(stdErr.Bytes()))
 	}
 
 	return thumbnail, nil
