@@ -41,7 +41,7 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 
 	err = cmd.Run()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, string(stdErr.Bytes()))
 	}
 
 	resultingImg := stdOut.String()
@@ -50,7 +50,7 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 
 	thumbnail, err := os.Open(resultingImg)
 	if err != nil {
-		return nil, errors.Wrap(err, string(stdErr.Bytes()))
+		return nil,err
 	}
 
 	return thumbnail, nil
