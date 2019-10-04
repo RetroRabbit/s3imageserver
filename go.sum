@@ -2,6 +2,8 @@ github.com/RetroRabbit/s3imageserver v0.0.0-20190902063624-2324a38316f5 h1:pml7Q
 github.com/RetroRabbit/s3imageserver v0.0.0-20190902063624-2324a38316f5/go.mod h1:UQqi+mRj2tau0kQerx/VHZQxZtgGH4Js3bhbylktS/k=
 github.com/RetroRabbit/vips v0.0.0-20180426112656-3bcbddd4e43c h1:zZOeWilpa8zVmLAZoOZP6o3eYcLRwyuGuqF3+zd2zz0=
 github.com/RetroRabbit/vips v0.0.0-20180426112656-3bcbddd4e43c/go.mod h1:0Dmfzt7KSR3zWarO5fYNA56yUolTLv4U8gaP7mVcs+4=
+github.com/RetroRabbit/vips v1.0.1 h1:3ieK/Q3lWI4S58n4h4zR8B/otvbk1z5/ytpRVpR4pgw=
+github.com/RetroRabbit/vips v1.0.1/go.mod h1:0Dmfzt7KSR3zWarO5fYNA56yUolTLv4U8gaP7mVcs+4=
 github.com/chai2010/webp v1.1.0 h1:4Ei0/BRroMF9FaXDG2e4OxwFcuW2vcXd+A6tyqTJUQQ=
 github.com/chai2010/webp v1.1.0/go.mod h1:LP12PG5IFmLGHUU26tBiCBKnghxx3toZFwDjOYvd3Ow=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=

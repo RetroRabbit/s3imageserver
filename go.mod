@@ -3,7 +3,7 @@ module github.com/RetroRabbit/s3imageserver/v3
 go 1.12
 
 require (
-	github.com/RetroRabbit/vips v0.0.0-20180426112656-3bcbddd4e43c
+	github.com/RetroRabbit/vips v1.0.1
 	github.com/chai2010/webp v1.1.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gosexy/to v0.0.0-20141221203644-c20e083e3123
