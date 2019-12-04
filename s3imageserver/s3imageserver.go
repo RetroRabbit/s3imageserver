@@ -182,19 +182,26 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 
 		//GET image from source
 		img, err := source.GetImage(r.URL.Path)
+
 		if err != nil {
 			log.Printf("GetImage failed for %v with error %+v", r.URL.String(), err)
-			//Mssing img
-			img, err := ErrorImage(config.ErrorImage, formatting)
-			if err != nil {
-				log.Printf("Error getting error img %+v", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
+
+			if len(config.ErrorImage) > 0 {
+				//Mssing img
+				img, err := ErrorImage(config.ErrorImage, formatting)
+				if err != nil {
+					log.Printf("Error getting error img %+v", err)
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				_, err = w.Write(img)
+				if err != nil {
+					log.Printf("Error writing result %+v", err)
+				}
+			} else {
+				w.WriteHeader(http.StatusNotFound)
 			}
-			_, err = w.Write(img)
-			if err != nil {
-				log.Printf("Error writing result %+v", err)
-			}
+
 			return
 		}
 
