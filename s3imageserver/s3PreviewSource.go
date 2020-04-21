@@ -7,11 +7,14 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kr/s3"
 	"github.com/pkg/errors"
 )
+
+var s3PreviewSourceOnce sync.Once
 
 type S3PreviewConfig struct {
 	AWSAccess string   `json:"aws_access"`
@@ -31,6 +34,10 @@ type ThumbnailRenderer interface {
 
 //A simple s3 image source, gets the image from s3 and presents as is
 func NewS3PreviewSource() func(config S3PreviewConfig) *s3PreviewSource {
+	s3PreviewSourceOnce.Do(func() {
+		http.DefaultClient.Timeout = 15 * time.Second
+	})
+
 	return func(config S3PreviewConfig) *s3PreviewSource {
 		return &s3PreviewSource{
 			S3PreviewConfig: config,
@@ -53,7 +60,7 @@ func (s *s3PreviewSource) GetImage(path string) ([]byte, error) {
 		AccessKey: s.AWSAccess,
 		SecretKey: s.AWSSecret,
 	})
-	http.DefaultClient.Timeout = 15 * time.Second
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to fetch")
