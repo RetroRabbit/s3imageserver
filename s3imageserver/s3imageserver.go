@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -81,13 +80,13 @@ func Run(verify HandleVerification) (done *sync.WaitGroup) {
 		log.Println("Error:", err)
 		return
 	}
-	fmt.Println("Initializing...")
-	fmt.Println("HTTPS_Enabled:", conf.HTTPSEnabled)
+	log.Println("Initializing...")
+	log.Println("HTTPS_Enabled:", conf.HTTPSEnabled)
 	if conf.HTTPSEnabled {
-		fmt.Println("Port:", conf.HTTPSPort)
-		fmt.Println("Strict:", conf.HTTPSStrict)
+		log.Println("Port:", conf.HTTPSPort)
+		log.Println("Strict:", conf.HTTPSStrict)
 	} else {
-		fmt.Println("Port:", conf.HTTPPort)
+		log.Println("Port:", conf.HTTPPort)
 	}
 
 	r := http.NewServeMux()
@@ -187,7 +186,7 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 			log.Printf("GetImage failed for %v with error %+v", r.URL.String(), err)
 
 			if len(config.ErrorImage) > 0 {
-				//Mssing img
+				//Missing img
 				img, err := ErrorImage(config.ErrorImage, formatting)
 				if err != nil {
 					log.Printf("Error getting error img %+v", err)
@@ -205,7 +204,7 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 			return
 		}
 
-		log.Println("Image with size", len(img), err)
+		log.Println("Image with size", len(img), r.URL.Path)
 
 		//Resize and/or crop + Present in encoding
 		resultImg, err := ResizeCrop(img, formatting)

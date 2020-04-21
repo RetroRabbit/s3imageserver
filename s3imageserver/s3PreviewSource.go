@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -41,7 +42,7 @@ func NewS3PreviewSource() func(config S3PreviewConfig) *s3PreviewSource {
 func (s *s3PreviewSource) GetImage(path string) ([]byte, error) {
 	parts := strings.Split(path, "/")
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v", parts[1], strings.Join(parts[2:], "/"))
-	fmt.Println("aws request url ", reqURL)
+	log.Println("aws request url ", reqURL)
 	req, err := http.NewRequest("GET", reqURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Could not create request")
