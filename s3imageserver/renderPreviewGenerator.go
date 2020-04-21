@@ -35,7 +35,12 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 	stdOut := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
 
-	cmd := exec.Command(pg.Command[0], append(pg.Command[1:], tempPath)...)
+	command := make([]string, len(pg.Command))
+
+	// copy the slice as we are running a concurrent threads and Command is shared
+	copy(command, pg.Command)
+
+	cmd := exec.Command(command[0], append(command[1:], tempPath)...)
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
 
@@ -50,7 +55,7 @@ func (pg *PreviewGenerator) Render(filename string, file io.Reader) (io.ReadClos
 
 	thumbnail, err := os.Open(resultingImg)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	return thumbnail, nil
