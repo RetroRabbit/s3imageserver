@@ -4,6 +4,8 @@ github.com/RetroRabbit/vips v0.0.0-20180426112656-3bcbddd4e43c h1:zZOeWilpa8zVmL
 github.com/RetroRabbit/vips v0.0.0-20180426112656-3bcbddd4e43c/go.mod h1:0Dmfzt7KSR3zWarO5fYNA56yUolTLv4U8gaP7mVcs+4=
 github.com/RetroRabbit/vips v1.0.1 h1:3ieK/Q3lWI4S58n4h4zR8B/otvbk1z5/ytpRVpR4pgw=
 github.com/RetroRabbit/vips v1.0.1/go.mod h1:0Dmfzt7KSR3zWarO5fYNA56yUolTLv4U8gaP7mVcs+4=
+github.com/RetroRabbit/vips v1.0.2 h1:72xaBNMGPFhtYkCbeql+SJjjO1QwePotlL3ShG5mBok=
+github.com/RetroRabbit/vips v1.0.2/go.mod h1:gAhNYpkbKmctGpAbCADhhvfpfry+Mjns9gqlxsatjck=
 github.com/chai2010/webp v1.1.0 h1:4Ei0/BRroMF9FaXDG2e4OxwFcuW2vcXd+A6tyqTJUQQ=
 github.com/chai2010/webp v1.1.0/go.mod h1:LP12PG5IFmLGHUU26tBiCBKnghxx3toZFwDjOYvd3Ow=
 github.com/daddye/vips v0.0.0-20170307215529-87cfaf94f7a1/go.mod h1:UqnfPmY4HfvqOBrGdfGTe7Wog8HFMgaz7laavXMVSss=
