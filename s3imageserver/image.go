@@ -8,16 +8,18 @@ import (
 )
 
 type FormatSettings struct {
-	Enlarge      bool
-	BlurAmount   float32
-	Pixelation   int
-	Quality      int
-	Interlaced   bool
-	Height       int
-	Width        int
-	Crop         bool
-	FeatureCrop  bool
-	OutputFormat vips.ImageType
+	Enlarge       bool
+	BlurAmount    float32
+	Pixelation    int
+	Quality       int
+	Interlaced    bool
+	Height        int
+	Width         int
+	Crop          bool
+	FeatureCrop   bool
+	OutputFormat  vips.ImageType
+	HeightMissing bool
+	WidthMissing  bool
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
@@ -26,13 +28,17 @@ var friendlyTypeNames = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG:
 
 func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings {
 	maxDimension := 3064
+	heightMissing := false
+	widthMissing := false
 	height := int(to.Float64(r.URL.Query().Get("h")))
 	if height == 0 {
 		height = *config.DefaultHeight
+		heightMissing = true
 	}
 	width := int(to.Float64(r.URL.Query().Get("w")))
 	if width == 0 {
 		width = *config.DefaultWidth
+		widthMissing = true
 	}
 	if height > maxDimension {
 		height = maxDimension
@@ -86,16 +92,18 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 	}
 	f := getFormatSupported(r.URL.Query().Get("f"), getFormatSupported(config.DefaultImageFormat, vips.JPEG))
 	return &FormatSettings{
-		Height:       height,
-		Crop:         crop,
-		FeatureCrop:  featureCrop,
-		Interlaced:   interlaced,
-		Width:        width,
-		Quality:      quality,
-		BlurAmount:   blurAmount,
-		Pixelation:   pixelation,
-		Enlarge:      enlarge,
-		OutputFormat: f,
+		Height:        height,
+		Crop:          crop,
+		FeatureCrop:   featureCrop,
+		Interlaced:    interlaced,
+		Width:         width,
+		Quality:       quality,
+		BlurAmount:    blurAmount,
+		Pixelation:    pixelation,
+		Enlarge:       enlarge,
+		OutputFormat:  f,
+		HeightMissing: heightMissing,
+		WidthMissing:  widthMissing,
 	}
 }
 
@@ -108,18 +116,20 @@ func getFormatSupported(format string, def vips.ImageType) vips.ImageType {
 
 func ResizeCrop(image []byte, settings *FormatSettings) ([]byte, error) {
 	options := vips.Options{
-		Width:        settings.Width,
-		Height:       settings.Height,
-		Crop:         settings.Crop,
-		FeatureCrop:  settings.FeatureCrop,
-		Extend:       vips.EXTEND_WHITE,
-		Interpolator: vips.BICUBIC,
-		Interlaced:   settings.Interlaced,
-		Gravity:      vips.CENTRE,
-		Quality:      settings.Quality,
-		Format:       settings.OutputFormat,
-		Enlarge:      settings.Enlarge,
-		BlurAmount:   settings.BlurAmount,
+		Width:         settings.Width,
+		WidthMissing:  settings.WidthMissing,
+		Height:        settings.Height,
+		HeightMissing: settings.HeightMissing,
+		Crop:          settings.Crop,
+		FeatureCrop:   settings.FeatureCrop,
+		Extend:        vips.EXTEND_WHITE,
+		Interpolator:  vips.BICUBIC,
+		Interlaced:    settings.Interlaced,
+		Gravity:       vips.CENTRE,
+		Quality:       settings.Quality,
+		Format:        settings.OutputFormat,
+		Enlarge:       settings.Enlarge,
+		BlurAmount:    settings.BlurAmount,
 	}
 	return vips.Resize(image, options)
 }

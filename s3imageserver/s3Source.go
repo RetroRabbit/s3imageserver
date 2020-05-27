@@ -36,7 +36,6 @@ func NewS3Source(config S3Config) *s3source {
 }
 
 func (s *s3source) GetImage(path string) ([]byte, error) {
-	log.Println("v4")
 	parts := strings.Split(path, "/")
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v", parts[1], strings.Join(parts[2:], "/"))
 	log.Println("aws request url ", reqURL)
