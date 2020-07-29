@@ -4,11 +4,9 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"flag"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 
 	"net/url"
@@ -186,19 +184,7 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 
 		if err != nil {
 			log.Printf("GetImage failed for %v with error %+v", r.URL.String(), err)
-
-			if len(config.ErrorImage) > 0 {
-				//Missing img
-				err := ErrorImage(w, config.ErrorImage, formatting)
-				if err != nil {
-					log.Printf("Error getting error img %+v", err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-			} else {
-				w.WriteHeader(http.StatusNotFound)
-			}
-
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		defer img.Close()
@@ -207,28 +193,9 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 		err = ResizeCrop(w, img, formatting)
 		if err != nil {
 			log.Printf("ResizeCrop failed for %v with error %+v", r.URL.String(), err)
-			//Mssing img
-			err := ErrorImage(w, config.ErrorImage, formatting)
-			if err != nil {
-				log.Printf("Error getting error img %+v", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			return
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-}
-
-func ErrorImage(w io.Writer, fileName string, formatting *FormatSettings) error {
-	if fileName == "" {
-		return nil
-	}
-	f, err := os.Open(fileName)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return ResizeCrop(w, f, formatting)
 }
 
 func cleanURL(r *http.Request) {
