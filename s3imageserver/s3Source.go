@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/kr/s3"
@@ -22,14 +21,8 @@ type s3source struct {
 	S3Config
 }
 
-var s3SourceOnce sync.Once
-
 //A simple s3 image source, gets the image from s3 and presents as is
 func NewS3Source(config S3Config) *s3source {
-	s3SourceOnce.Do(func() {
-		http.DefaultClient.Timeout = 15 * time.Second
-	})
-
 	return &s3source{
 		S3Config: config,
 	}

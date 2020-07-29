@@ -61,8 +61,15 @@ type HandleVerification func(string) bool
 var Sources = &SourceMap{}
 
 func init() {
-	Sources.AddSource("s3", NewS3Source)
-	Sources.AddSource("s3Thumb", NewS3PreviewSource())
+	err := Sources.AddSource("s3", NewS3Source)
+	if err != nil {
+		log.Println(err)
+	}
+	err = Sources.AddSource("s3Thumb", S3PreviewSource)
+	if err != nil {
+		log.Println(err)
+	}
+
 }
 
 func Run(verify HandleVerification) (done *sync.WaitGroup) {
