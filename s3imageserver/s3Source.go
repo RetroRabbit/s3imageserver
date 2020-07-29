@@ -2,7 +2,7 @@ package s3imageserver
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -35,7 +35,7 @@ func NewS3Source(config S3Config) *s3source {
 	}
 }
 
-func (s *s3source) GetImage(path string) ([]byte, error) {
+func (s *s3source) GetImage(path string) (io.ReadCloser, error) {
 	parts := strings.Split(path, "/")
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v", parts[1], strings.Join(parts[2:], "/"))
 	log.Println("aws request url ", reqURL)
@@ -53,15 +53,9 @@ func (s *s3source) GetImage(path string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(reqErr, "Failed to fetch")
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("%v error while making request", resp.StatusCode)
 	}
-	data, err := ioutil.ReadAll(resp.Body)
 
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error reading response body from %v", req.URL)
-	}
-
-	return data, nil
+	return resp.Body, nil
 }

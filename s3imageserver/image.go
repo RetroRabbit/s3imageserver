@@ -1,10 +1,10 @@
 package s3imageserver
 
 import (
-	"bytes"
-	"net/http"
 	"github.com/disintegration/imaging"
 	"github.com/gosexy/to"
+	"io"
+	"net/http"
 )
 
 type FormatSettings struct {
@@ -113,17 +113,13 @@ func getFormatSupported(format string, def string) string {
 	return format
 }
 
-func ResizeCrop(image []byte, settings *FormatSettings) ([]byte, error) {
-	// TODO - avoid unnecessary copying and allocations
-	// image should be io.Reader and should return io.Writer
-	src, err := imaging.Decode(bytes.NewReader(image))
+func ResizeCrop(w io.Writer, image io.Reader, settings *FormatSettings) error {
+	src, err := imaging.Decode(image)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	out := imaging.Resize(src, settings.Width, settings.Height, imaging.Lanczos)
 
-	outBuf := bytes.Buffer{}
-	err  = imaging.Encode(&outBuf, out, settings.OutputFormat)
+	return imaging.Encode(w, out, settings.OutputFormat)
 
-	return outBuf.Bytes(), err
 }
