@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/RetroRabbit/s3imageserver/v3/s3imageserver"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/getkalido/s3imageserver/v3/s3imageserver"
 )
 
 func main() {

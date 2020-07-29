@@ -184,63 +184,18 @@ func Handle(source ImageSource, config HandlerConfig, verify HandleVerification)
 
 		if err != nil {
 			log.Printf("GetImage failed for %v with error %+v", r.URL.String(), err)
-
-			if len(config.ErrorImage) > 0 {
-				//Missing img
-				img, err := ErrorImage(config.ErrorImage, formatting)
-				if err != nil {
-					log.Printf("Error getting error img %+v", err)
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-				_, err = w.Write(img)
-				if err != nil {
-					log.Printf("Error writing result %+v", err)
-				}
-			} else {
-				w.WriteHeader(http.StatusNotFound)
-			}
-
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-
-		log.Println("Image with size", len(img), r.URL.Path)
+		defer img.Close()
 
 		//Resize and/or crop + Present in encoding
-		resultImg, err := ResizeCrop(img, formatting)
+		err = ResizeCrop(w, img, formatting)
 		if err != nil {
 			log.Printf("ResizeCrop failed for %v with error %+v", r.URL.String(), err)
-			//Mssing img
-			img, err := ErrorImage(config.ErrorImage, formatting)
-			if err != nil {
-				log.Printf("Error getting error img %+v", err)
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			_, err = w.Write(img)
-			if err != nil {
-				log.Printf("Error writing result %+v", err)
-			}
-			return
-		}
-
-		w.Header().Set("Content-Length", strconv.Itoa(len(resultImg)))
-		_, err = w.Write(resultImg)
-		if err != nil {
-			log.Printf("Error writing result %+v", err)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-}
-
-func ErrorImage(url string, formatting *FormatSettings) ([]byte, error) {
-	if url != "" {
-		Image, err := ioutil.ReadFile(url)
-		if err != nil {
-			return nil, err
-		}
-		return ResizeCrop(Image, formatting)
-	}
-	return nil, nil
 }
 
 func cleanURL(r *http.Request) {

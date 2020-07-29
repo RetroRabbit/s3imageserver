@@ -2,13 +2,14 @@ package s3imageserver
 
 import (
 	"encoding/json"
+	"io"
 	"reflect"
 
 	"github.com/pkg/errors"
 )
 
 type ImageSource interface {
-	GetImage(string) ([]byte, error)
+	GetImage(string) (io.ReadCloser, error)
 }
 
 type SourceMap struct {

@@ -1,15 +1,16 @@
 package s3imageserver
 
 import (
-	"net/http"
-
-	"github.com/RetroRabbit/vips"
+	"github.com/disintegration/imaging"
 	"github.com/gosexy/to"
+	"image"
+	"io"
+	"net/http"
 )
 
 type FormatSettings struct {
 	Enlarge       bool
-	BlurAmount    float32
+	BlurAmount    float64
 	Pixelation    int
 	Quality       int
 	Interlaced    bool
@@ -17,25 +18,24 @@ type FormatSettings struct {
 	Width         int
 	Crop          bool
 	FeatureCrop   bool
-	OutputFormat  vips.ImageType
+	OutputFormat  imaging.Format
 	HeightMissing bool
 	WidthMissing  bool
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
-var allowedMap = map[string]vips.ImageType{".webp": vips.WEBP, ".jpg": vips.JPEG, ".png": vips.PNG}
-var friendlyTypeNames = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG: ".jpg", vips.PNG: ".png"}
 
 func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings {
 	maxDimension := 3064
 	heightMissing := false
 	widthMissing := false
-	height := int(to.Float64(r.URL.Query().Get("h")))
+	q := r.URL.Query()
+	height := int(to.Float64(q.Get("h")))
 	if height == 0 {
 		height = *config.DefaultHeight
 		heightMissing = true
 	}
-	width := int(to.Float64(r.URL.Query().Get("w")))
+	width := int(to.Float64(q.Get("w")))
 	if width == 0 {
 		width = *config.DefaultWidth
 		widthMissing = true
@@ -47,50 +47,55 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 		width = maxDimension
 	}
 	enlarge := true
-	if r.URL.Query().Get("e") != "" {
-		enlarge = to.Bool(r.URL.Query().Get("e"))
+
+	if q.Get("e") != "" {
+		enlarge = to.Bool(q.Get("e"))
 	}
 	featureCrop := false
 	crop := !config.DefaultDontCrop
-	if r.URL.Query().Get("c") != "" {
-		crop = to.Bool(r.URL.Query().Get("c"))
+	if q.Get("c") != "" {
+		crop = to.Bool(q.Get("c"))
 	}
 	//should only use the default if cropping is set to true
 	featureCrop = config.DefaultFeatureCrop != nil && *config.DefaultFeatureCrop && crop
-	if r.URL.Query().Get("fc") != "" {
-		featureCrop = to.Bool(r.URL.Query().Get("fc"))
+	if q.Get("fc") != "" {
+		featureCrop = to.Bool(q.Get("fc"))
 	}
 	interlaced := true
-	if r.URL.Query().Get("i") != "" {
-		interlaced = to.Bool(r.URL.Query().Get("i"))
+	if q.Get("i") != "" {
+		interlaced = to.Bool(q.Get("i"))
 	}
 	var quality int
 	if config.DefaultQuality != nil {
 		quality = *config.DefaultQuality
 	}
-	if r.URL.Query().Get("p") != "" {
-		profile := string(r.URL.Query().Get("p"))
+	if q.Get("p") != "" {
+		profile := string(q.Get("p"))
 		if profile == "w" && config.WifiQuality != nil && *config.WifiQuality > 0 {
 			quality = *config.WifiQuality
 		}
 	}
-	if r.URL.Query().Get("q") != "" {
-		quality = int(to.Float64(r.URL.Query().Get("q")))
+	if q.Get("q") != "" {
+		quality = int(to.Float64(q.Get("q")))
 	}
-	blurAmount := float32(0)
-	if r.URL.Query().Get("b") != "" {
-		blurAmount = float32(to.Float64(r.URL.Query().Get("b")))
+	blurAmount := 0.0
+	if q.Get("b") != "" {
+		blurAmount = to.Float64(q.Get("b"))
 	}
 	pixelation := 0
-	if r.URL.Query().Get("px") != "" {
-		pixelation = int(to.Float64(r.URL.Query().Get("px")))
+	if q.Get("px") != "" {
+		pixelation = int(to.Float64(q.Get("px")))
 		if pixelation > 100 {
 			pixelation = 100
 		} else if pixelation < 0 {
 			pixelation = 0
 		}
 	}
-	f := getFormatSupported(r.URL.Query().Get("f"), getFormatSupported(config.DefaultImageFormat, vips.JPEG))
+	f := q.Get("f")
+	fmt, err := imaging.FormatFromExtension(f)
+	if err != nil {
+		fmt = imaging.JPEG
+	}
 	return &FormatSettings{
 		Height:        height,
 		Crop:          crop,
@@ -101,35 +106,58 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 		BlurAmount:    blurAmount,
 		Pixelation:    pixelation,
 		Enlarge:       enlarge,
-		OutputFormat:  f,
+		OutputFormat:  fmt,
 		HeightMissing: heightMissing,
 		WidthMissing:  widthMissing,
 	}
 }
 
-func getFormatSupported(format string, def vips.ImageType) vips.ImageType {
-	if f, ok := allowedMap[format]; ok {
-		return f
-	}
-	return def
+func getFormatSupported(format string, def string) string {
+	return format
 }
 
-func ResizeCrop(image []byte, settings *FormatSettings) ([]byte, error) {
-	options := vips.Options{
-		Width:         settings.Width,
-		WidthMissing:  settings.WidthMissing,
-		Height:        settings.Height,
-		HeightMissing: settings.HeightMissing,
-		Crop:          settings.Crop,
-		FeatureCrop:   settings.FeatureCrop,
-		Extend:        vips.EXTEND_WHITE,
-		Interpolator:  vips.BICUBIC,
-		Interlaced:    settings.Interlaced,
-		Gravity:       vips.CENTRE,
-		Quality:       settings.Quality,
-		Format:        settings.OutputFormat,
-		Enlarge:       settings.Enlarge,
-		BlurAmount:    settings.BlurAmount,
+// cropRect returns the rect with width w and hight h at the centre of orig.
+func cropRect(orig image.Rectangle, w int, h int) image.Rectangle {
+	if w < 0 {
+		w = 0
 	}
-	return vips.Resize(image, options)
+	if h < 0 {
+		h = 0
+	}
+	leftMargin := (orig.Size().X - w) / 2
+	topMargin := (orig.Size().Y - h) / 2
+
+	if leftMargin < 0 {
+		leftMargin = 0
+	}
+
+	if topMargin < 0 {
+		topMargin = 0
+	}
+
+	newMin := image.Point{orig.Min.X + leftMargin, orig.Min.Y + topMargin}
+
+	return image.Rectangle{
+		Min: newMin,
+		Max: newMin.Add(image.Point{w, h}),
+	}
+}
+
+func ResizeCrop(w io.Writer, r io.Reader, settings *FormatSettings) error {
+	src, err := imaging.Decode(r)
+	if err != nil {
+		return err
+	}
+	var out *image.NRGBA
+	if settings.Crop {
+		out = imaging.Crop(src, cropRect(src.Bounds(), settings.Width, settings.Height))
+	} else {
+		out = imaging.Resize(src, settings.Width, settings.Height, imaging.Lanczos)
+	}
+	if settings.BlurAmount > 0 {
+		out = imaging.Blur(out, settings.BlurAmount)
+	}
+
+	return imaging.Encode(w, out, settings.OutputFormat, imaging.JPEGQuality(settings.Quality))
+
 }
