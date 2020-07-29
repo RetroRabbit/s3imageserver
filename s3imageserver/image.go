@@ -1,9 +1,9 @@
 package s3imageserver
 
 import (
+	"bytes"
 	"net/http"
-
-	"github.com/RetroRabbit/vips"
+	"github.com/disintegration/imaging"
 	"github.com/gosexy/to"
 )
 
@@ -17,14 +17,12 @@ type FormatSettings struct {
 	Width         int
 	Crop          bool
 	FeatureCrop   bool
-	OutputFormat  vips.ImageType
+	OutputFormat  imaging.Format
 	HeightMissing bool
 	WidthMissing  bool
 }
 
 var allowedTypes = []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
-var allowedMap = map[string]vips.ImageType{".webp": vips.WEBP, ".jpg": vips.JPEG, ".png": vips.PNG}
-var friendlyTypeNames = map[vips.ImageType]string{vips.WEBP: ".webp", vips.JPEG: ".jpg", vips.PNG: ".png"}
 
 func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings {
 	maxDimension := 3064
@@ -90,7 +88,11 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 			pixelation = 0
 		}
 	}
-	f := getFormatSupported(r.URL.Query().Get("f"), getFormatSupported(config.DefaultImageFormat, vips.JPEG))
+	f := r.URL.Query().Get("f")
+	fmt, err := imaging.FormatFromExtension(f)
+	if err != nil {
+		fmt = imaging.JPEG
+	}
 	return &FormatSettings{
 		Height:        height,
 		Crop:          crop,
@@ -101,35 +103,27 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 		BlurAmount:    blurAmount,
 		Pixelation:    pixelation,
 		Enlarge:       enlarge,
-		OutputFormat:  f,
+		OutputFormat:  fmt,
 		HeightMissing: heightMissing,
 		WidthMissing:  widthMissing,
 	}
 }
 
-func getFormatSupported(format string, def vips.ImageType) vips.ImageType {
-	if f, ok := allowedMap[format]; ok {
-		return f
-	}
-	return def
+func getFormatSupported(format string, def string) string {
+	return format
 }
 
 func ResizeCrop(image []byte, settings *FormatSettings) ([]byte, error) {
-	options := vips.Options{
-		Width:         settings.Width,
-		WidthMissing:  settings.WidthMissing,
-		Height:        settings.Height,
-		HeightMissing: settings.HeightMissing,
-		Crop:          settings.Crop,
-		FeatureCrop:   settings.FeatureCrop,
-		Extend:        vips.EXTEND_WHITE,
-		Interpolator:  vips.BICUBIC,
-		Interlaced:    settings.Interlaced,
-		Gravity:       vips.CENTRE,
-		Quality:       settings.Quality,
-		Format:        settings.OutputFormat,
-		Enlarge:       settings.Enlarge,
-		BlurAmount:    settings.BlurAmount,
+	// TODO - avoid unnecessary copying and allocations
+	// image should be io.Reader and should return io.Writer
+	src, err := imaging.Decode(bytes.NewReader(image))
+	if err != nil {
+		return nil, err
 	}
-	return vips.Resize(image, options)
+	out := imaging.Resize(src, settings.Width, settings.Height, imaging.Lanczos)
+
+	outBuf := bytes.Buffer{}
+	err  = imaging.Encode(&outBuf, out, settings.OutputFormat)
+
+	return outBuf.Bytes(), err
 }
