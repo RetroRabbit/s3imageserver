@@ -1,5 +1,4 @@
-module github.com/RetroRabbit/s3imageserver/v3
-
+module github.com/getkalido/s3imageserver
 go 1.13
 
 require (
