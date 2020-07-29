@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/getklido/s3imageserver/v3/s3imageserver"
+	"github.com/getkalido/s3imageserver/v3/s3imageserver"
 )
 
 func main() {

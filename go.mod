@@ -1,4 +1,4 @@
-module github.com/getklido/s3imageserver/v3
+module github.com/getkalido/s3imageserver/v3
 
 go 1.13
 
