@@ -5,6 +5,7 @@ import (
 	"github.com/gosexy/to"
 	"image"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -31,20 +32,15 @@ func GetFormatSettings(r *http.Request, config *FormatDefaults) *FormatSettings 
 	widthMissing := false
 	q := r.URL.Query()
 	height := int(to.Float64(q.Get("h")))
-	if height == 0 {
-		height = *config.DefaultHeight
-		heightMissing = true
-	}
 	width := int(to.Float64(q.Get("w")))
-	if width == 0 {
-		width = *config.DefaultWidth
-		widthMissing = true
-	}
 	if height > maxDimension {
 		height = maxDimension
 	}
 	if width > maxDimension {
 		width = maxDimension
+	}
+	if height == 0 && width == 0 {
+		width, height = *config.DefaultWidth, *config.DefaultHeight
 	}
 	enlarge := true
 
@@ -116,44 +112,27 @@ func getFormatSupported(format string, def string) string {
 	return format
 }
 
-// cropRect returns the rect with width w and hight h at the centre of orig.
-func cropRect(orig image.Rectangle, w int, h int) image.Rectangle {
-	if w < 0 {
-		w = 0
-	}
-	if h < 0 {
-		h = 0
-	}
-	leftMargin := (orig.Size().X - w) / 2
-	topMargin := (orig.Size().Y - h) / 2
-
-	if leftMargin < 0 {
-		leftMargin = 0
-	}
-
-	if topMargin < 0 {
-		topMargin = 0
-	}
-
-	newMin := image.Point{orig.Min.X + leftMargin, orig.Min.Y + topMargin}
-
-	return image.Rectangle{
-		Min: newMin,
-		Max: newMin.Add(image.Point{w, h}),
-	}
-}
-
 func ResizeCrop(w io.Writer, r io.Reader, settings *FormatSettings) error {
+	log.Printf("ResizeCrop %#v", settings)
+
 	src, err := imaging.Decode(r)
 	if err != nil {
 		return err
 	}
-	var out *image.NRGBA
-	if settings.Crop {
-		out = imaging.Crop(src, cropRect(src.Bounds(), settings.Width, settings.Height))
+	log.Println("decoded image", src.Bounds().Max)
+	var out image.Image
+	if settings.Width <= 0 && settings.Height <= 0 {
+		log.Println(settings.Width, settings.Height, "requested, keeping original dimentions")
+		return imaging.Encode(w, src, settings.OutputFormat, imaging.JPEGQuality(settings.Quality))
+	}
+
+	if settings.Crop && settings.Width > 0 && settings.Height > 0 {
+		out = imaging.Fill(src, settings.Width, settings.Height, imaging.Center, imaging.Lanczos)
 	} else {
 		out = imaging.Resize(src, settings.Width, settings.Height, imaging.Lanczos)
+
 	}
+
 	if settings.BlurAmount > 0 {
 		out = imaging.Blur(out, settings.BlurAmount)
 	}
