@@ -127,7 +127,7 @@ func ResizeCrop(w io.Writer, r io.Reader, settings *FormatSettings) error {
 	}
 
 	if settings.Crop && settings.Width > 0 && settings.Height > 0 {
-		out = imaging.Fill(src, settings.Width, settings.Height, imaging.Center, imaging.Lanczos)
+		out = imaging.Fill(src, settings.Width, settings.Height, imaging.Top, imaging.Lanczos)
 	} else {
 		out = imaging.Resize(src, settings.Width, settings.Height, imaging.Lanczos)
 
