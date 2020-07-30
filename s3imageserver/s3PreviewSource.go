@@ -3,18 +3,14 @@ package s3imageserver
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/kr/s3"
 	"github.com/pkg/errors"
 )
-
-var s3PreviewSourceOnce sync.Once
 
 type S3PreviewConfig struct {
 	AWSAccess string   `json:"aws_access"`
@@ -32,21 +28,19 @@ type ThumbnailRenderer interface {
 	Render(string, io.Reader) (io.ReadCloser, error)
 }
 
-//A simple s3 image source, gets the image from s3 and presents as is
-func NewS3PreviewSource() func(config S3PreviewConfig) *s3PreviewSource {
-	s3PreviewSourceOnce.Do(func() {
-		http.DefaultClient.Timeout = 15 * time.Second
-	})
+func init() {
+	http.DefaultClient.Timeout = 15 * time.Second
+}
 
-	return func(config S3PreviewConfig) *s3PreviewSource {
-		return &s3PreviewSource{
-			S3PreviewConfig: config,
-			previewer:       &PreviewGenerator{config.Command},
-		}
+//A simple s3 image source, gets the image from s3 and presents as is
+func S3PreviewSource(config S3PreviewConfig) *s3PreviewSource {
+	return &s3PreviewSource{
+		S3PreviewConfig: config,
+		previewer:       &PreviewGenerator{config.Command},
 	}
 }
 
-func (s *s3PreviewSource) GetImage(path string) ([]byte, error) {
+func (s *s3PreviewSource) GetImage(path string) (io.ReadCloser, error) {
 	parts := strings.Split(path, "/")
 	reqURL := fmt.Sprintf("https://%v.s3.amazonaws.com/%v", parts[1], strings.Join(parts[2:], "/"))
 	log.Println("aws request url ", reqURL)
@@ -74,13 +68,6 @@ func (s *s3PreviewSource) GetImage(path string) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to render thumbnail")
 	}
-	defer func() { _ = image.Close() }()
 
-	data, err := ioutil.ReadAll(image)
-
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error reading Render from %v", req.URL)
-	}
-
-	return data, nil
+	return image, nil
 }
